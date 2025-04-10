@@ -1,0 +1,335 @@
+/* Admin Dashboard Styles */
+:root {
+    --sidebar-width: 250px;
+    --sidebar-width-collapsed: 70px;
+    --navbar-height: 60px;
+    --primary-color: #0d6efd;
+    --secondary-color: #6c757d;
+    --success-color: #198754;
+    --info-color: #0dcaf0;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --light-color: #f8f9fa;
+    --dark-color: #212529;
+    --sidebar-bg: var(--dark-color);
+    --sidebar-color: var(--light-color);
+}
+
+/* Layout */
+.admin-wrapper {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* Sidebar */
+.admin-sidebar {
+    width: var(--sidebar-width);
+    background-color: var(--sidebar-bg);
+    color: var(--sidebar-color);
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1000;
+    transition: all 0.3s ease;
+}
+
+.admin-sidebar.collapsed {
+    width: var(--sidebar-width-collapsed);
+}
+
+.admin-sidebar.collapsed .sidebar-brand span,
+.admin-sidebar.collapsed .sidebar-link span {
+    display: none;
+}
+
+.admin-sidebar.collapsed .sidebar-link {
+    justify-content: center;
+    padding: 0.75rem;
+}
+
+.admin-sidebar.collapsed .sidebar-link i {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
+.sidebar-header {
+    height: var(--navbar-height);
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sidebar-brand {
+    color: var(--sidebar-color);
+    text-decoration: none;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.sidebar-brand:hover {
+    color: var(--primary-color);
+}
+
+.sidebar-menu {
+    list-style: none;
+    padding: 1rem 0;
+    margin: 0;
+    overflow-y: auto;
+    height: calc(100vh - var(--navbar-height));
+}
+
+.sidebar-item {
+    margin: 0.25rem 0;
+}
+
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    color: var(--sidebar-color);
+    text-decoration: none;
+    transition: all 0.3s ease;
+    gap: 0.75rem;
+    white-space: nowrap;
+}
+
+.sidebar-link:hover,
+.sidebar-link.active {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--primary-color);
+}
+
+.sidebar-link i {
+    width: 1.25rem;
+    text-align: center;
+    font-size: 1rem;
+}
+
+/* Navbar */
+.admin-navbar {
+    height: var(--navbar-height);
+    background-color: var(--light-color);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 0 1rem;
+    display: flex;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: var(--sidebar-width);
+    z-index: 999;
+    transition: all 0.3s ease;
+}
+
+.admin-navbar.expanded {
+    left: var(--sidebar-width-collapsed);
+}
+
+.navbar-toggle {
+    width: 40px;
+    height: 40px;
+    background: none;
+    border: none;
+    color: var(--dark-color);
+    font-size: 1.25rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    border-radius: 50%;
+    background-color: var(--light-color);
+}
+
+.navbar-toggle:hover {
+    color: var(--primary-color);
+}
+
+.navbar-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 0 1rem;
+}
+
+.navbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* Main Content */
+.admin-content {
+    flex: 1;
+    margin-left: var(--sidebar-width);
+    padding-top: var(--navbar-height);
+    transition: margin-left 0.3s ease;
+    background-color: #f5f6fa;
+    min-height: 100vh;
+    width: calc(100% - var(--sidebar-width));
+}
+
+.admin-content.expanded {
+    margin-left: var(--sidebar-width-collapsed);
+    width: calc(100% - var(--sidebar-width-collapsed));
+}
+
+/* Stats Cards */
+.stat-card {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-0.25rem);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.stat-icon {
+    font-size: 2rem;
+    color: var(--primary-color);
+    opacity: 0.8;
+}
+
+/* Tables */
+.table {
+    margin-bottom: 0;
+}
+
+.table th {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+}
+
+/* Responsive */
+@media (max-width: 991.98px) {
+    .admin-sidebar {
+        transform: translateX(calc(-1 * var(--sidebar-width)));
+        width: var(--sidebar-width) !important;
+    }
+
+    .admin-sidebar.show {
+        transform: translateX(0);
+    }
+
+    .admin-content {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+
+    .admin-navbar {
+        left: 0 !important;
+        width: 100% !important;
+    }
+
+    .navbar-toggle {
+        margin-right: 1rem;
+    }
+
+    /* Add overlay when sidebar is shown on mobile */
+    .admin-content::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 998;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .admin-sidebar.show ~ .admin-content::before {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    /* Ensure sidebar stays on top of overlay */
+    .admin-sidebar {
+        z-index: 999;
+    }
+}
+
+/* Cards */
+.card {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.card-header {
+    background-color: transparent;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    padding: 1rem;
+}
+
+/* Buttons */
+.btn-primary {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+}
+
+/* Dropdown */
+.dropdown-menu {
+    border: none;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.dropdown-item {
+    padding: 0.5rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dropdown-item:hover {
+    background-color: var(--light-color);
+    color: var(--primary-color);
+}
+
+.dropdown-divider {
+    margin: 0.5rem 0;
+    opacity: 0.1;
+}
+
+/* Utilities */
+.mt-auto {
+    margin-top: auto !important;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--gray-100);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--gray-400);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--gray-500);
+}
