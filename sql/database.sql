@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS quiz_attempts (
     user_id INT,
     quiz_id INT,
     score INT NOT NULL,
+    status TINYINT NOT NULL DEFAULT 0 COMMENT '0: in_progress, 1: completed',
     completion_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
@@ -130,16 +131,37 @@ CREATE TABLE IF NOT EXISTS quiz_questions (
     FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
 );
 
+-- Quiz answers table: stores each user's answer to each question in each attempt
+CREATE TABLE IF NOT EXISTS quiz_answers (
+    answer_id INT PRIMARY KEY AUTO_INCREMENT,
+    attempt_id INT NOT NULL,
+    user_id INT NOT NULL,
+    quiz_id INT NOT NULL,
+    question_id INT NOT NULL,
+    answer TEXT NOT NULL,
+    answered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (attempt_id) REFERENCES quiz_attempts(attempt_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE,
+    FOREIGN KEY (question_id) REFERENCES quiz_questions(question_id) ON DELETE CASCADE,
+    INDEX (user_id),
+    INDEX (quiz_id),
+    INDEX (question_id),
+    UNIQUE KEY uq_attempt_question (attempt_id, question_id)
+);
+
 -- Quiz results table
 CREATE TABLE IF NOT EXISTS quiz_results (
     result_id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT,
     quiz_id INT,
     score INT NOT NULL,
+    attempt_id INT,
     completion_time INT,
     taken_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-    FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE,
+    FOREIGN KEY (attempt_id) REFERENCES quiz_attempts(attempt_id) ON DELETE CASCADE
 );
 
 -- Voice recognition attempts table
@@ -159,6 +181,16 @@ CREATE TABLE IF NOT EXISTS chatbot_conversations (
     user_query TEXT NOT NULL,
     bot_response TEXT NOT NULL,
     conversation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+-- Chatbot messages table
+CREATE TABLE IF NOT EXISTS chat_messages (
+    message_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    sender TINYINT NOT NULL COMMENT '0: user, 1: chatbot',
+    message TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 

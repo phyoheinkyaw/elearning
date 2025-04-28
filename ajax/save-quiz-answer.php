@@ -8,22 +8,34 @@ if (!is_logged_in()) {
     exit();
 }
 
+$user_id = $_SESSION['user_id'];
+
 // Validate input
-if (!isset($_POST['question']) || !isset($_POST['answer'])) {
+if (!isset($_POST['question']) || !isset($_POST['answer']) || !isset($_POST['quiz_id'])) {
     echo json_encode(['success' => false, 'message' => 'Missing parameters']);
     exit();
 }
 
-$questionIndex = (int)$_POST['question'];
+$quiz_id = (int)$_POST['quiz_id'];
+$question_id = (int)$_POST['question'];
 $answer = $_POST['answer'];
 
-// Validate question index
-if (!isset($_SESSION['quiz_questions']) || $questionIndex < 0 || $questionIndex >= count($_SESSION['quiz_questions'])) {
-    echo json_encode(['success' => false, 'message' => 'Invalid question index']);
-    exit();
+// Find in-progress attempt
+$stmt = $conn->prepare("SELECT * FROM quiz_attempts WHERE user_id = ? AND quiz_id = ? AND status = 0");
+$stmt->execute([$user_id, $quiz_id]);
+$attempt = $stmt->fetch();
+
+if (!$attempt) {
+    // Create a new attempt if none exists (user resumed quiz after session expired)
+    $stmt = $conn->prepare("INSERT INTO quiz_attempts (quiz_id, user_id, score, status) VALUES (?, ?, 0, 0)");
+    $stmt->execute([$quiz_id, $user_id]);
+    $attempt_id = $conn->lastInsertId();
+} else {
+    $attempt_id = $attempt['attempt_id'];
 }
 
-// Store answer in session
-$_SESSION['quiz_answers'][$questionIndex] = $answer;
+// Upsert the answer
+$stmt = $conn->prepare("INSERT INTO quiz_answers (attempt_id, user_id, quiz_id, question_id, answer) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE answer = VALUES(answer)");
+$stmt->execute([$attempt_id, $user_id, $quiz_id, $question_id, $answer]);
 
-echo json_encode(['success' => true]); 
+echo json_encode(['success' => true]);

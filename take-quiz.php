@@ -29,9 +29,7 @@ if (!$quiz) {
 }
 
 // Check if user has already completed this quiz recently
-$stmt = $conn->prepare("SELECT * FROM quiz_attempts 
-                       WHERE quiz_id = ? AND user_id = ? 
-                       AND completion_date > DATE_SUB(NOW(), INTERVAL 24 HOUR)");
+$stmt = $conn->prepare("SELECT * FROM quiz_attempts WHERE quiz_id = ? AND user_id = ? AND status = 1 AND completion_date > DATE_SUB(NOW(), INTERVAL 24 HOUR)");
 $stmt->execute([$quiz_id, $user_id]);
 if ($stmt->fetch()) {
     $_SESSION['error'] = "You have already taken this quiz in the last 24 hours.";
@@ -39,79 +37,150 @@ if ($stmt->fetch()) {
     exit();
 }
 
+// Find or create in-progress attempt
+$stmt = $conn->prepare("SELECT * FROM quiz_attempts WHERE user_id = ? AND quiz_id = ? AND status = 0");
+$stmt->execute([$user_id, $quiz_id]);
+$attempt = $stmt->fetch();
+
+if ($attempt) {
+    $attempt_id = $attempt['attempt_id'];
+} else {
+    $stmt = $conn->prepare("INSERT INTO quiz_attempts (quiz_id, user_id, score, status) VALUES (?, ?, 0, 0)");
+    $stmt->execute([$quiz_id, $user_id]);
+    $attempt_id = $conn->lastInsertId();
+}
+
+// Load answers from DB
+$stmt = $conn->prepare("SELECT question_id, answer FROM quiz_answers WHERE attempt_id = ?");
+$stmt->execute([$attempt_id]);
+$existing_answers = [];
+while ($row = $stmt->fetch()) {
+    $existing_answers[$row['question_id']] = $row['answer'];
+}
+
 // Get quiz questions
 $stmt = $conn->prepare("SELECT * FROM quiz_questions WHERE quiz_id = ?");
 $stmt->execute([$quiz_id]);
 $questions = $stmt->fetchAll();
 
-// Store questions in session if not already stored
-if (!isset($_SESSION['quiz_questions'])) {
-    $_SESSION['quiz_questions'] = $questions;
-    $_SESSION['current_question'] = 0;
-    $_SESSION['quiz_answers'] = array_fill(0, count($questions), '');
+// Quiz intro/start screen logic
+$show_intro = !isset($_GET['start']) && !isset($_GET['q']) && !isset($_POST['submit']);
+
+// Ensure $current is always set
+$current = isset($_GET['q']) ? (int)$_GET['q'] : 0;
+$current = max(0, min($current, count($questions) - 1));
+
+// Debug: show the whole session answers array
+if (isset($existing_answers)) {
+    echo '<div class="alert alert-warning"><b>Debug EXISTING_ANSWERS:</b> <pre>';
+    var_export($existing_answers);
+    echo '</pre></div>';
 }
 
-$current = isset($_GET['q']) ? (int)$_GET['q'] : $_SESSION['current_question'];
-$current = max(0, min($current, count($_SESSION['quiz_questions']) - 1));
-$_SESSION['current_question'] = $current;
+// For matching: robustly decode as array for restoration
+function get_matching_saved_answers($question_id, $leftCount) {
+    global $existing_answers;
+    $rawSaved = isset($existing_answers[$question_id]) ? $existing_answers[$question_id] : '';
+    // Always decode if string and not empty
+    if (is_string($rawSaved) && $rawSaved !== '') {
+        $decoded = json_decode($rawSaved, true);
+        if (is_array($decoded)) {
+            $savedAnswers = $decoded;
+        } else {
+            $savedAnswers = array_fill(0, $leftCount, '');
+        }
+    } elseif (is_array($rawSaved)) {
+        $savedAnswers = $rawSaved;
+    } else {
+        $savedAnswers = array_fill(0, $leftCount, '');
+    }
+    if (count($savedAnswers) < $leftCount) {
+        $savedAnswers = array_pad($savedAnswers, $leftCount, '');
+    }
+    return $savedAnswers;
+}
 
-$question = $_SESSION['quiz_questions'][$current];
-$progress = ($current + 1) * (100 / count($questions));
+if (!$show_intro) {
+    $question = $questions[$current];
+    $progress = ($current + 1) * (100 / count($questions));
+}
 
 // Handle quiz submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     try {
         $conn->beginTransaction();
 
-        // Create quiz attempt
-        $stmt = $conn->prepare("INSERT INTO quiz_attempts (quiz_id, user_id, score) VALUES (?, ?, 0)");
-        $stmt->execute([$quiz_id, $user_id]);
-        $attempt_id = $conn->lastInsertId();
-
-        $total_questions = count($_SESSION['quiz_questions']);
+        $total_questions = count($questions);
         $correct_answers = 0;
+        $incomplete_index = -1;
 
         // Process each answer
-        foreach ($_SESSION['quiz_questions'] as $index => $question) {
-            $answer = $_SESSION['quiz_answers'][$index];
-            
-            // Skip empty answers
-            if (empty($answer)) {
-                continue;
-            }
-
-            // Record answer
-            $stmt = $conn->prepare("INSERT INTO quiz_answers (attempt_id, question_id, answer) VALUES (?, ?, ?)");
-            $stmt->execute([$attempt_id, $question['question_id'], $answer]);
-
-            // Check if answer is correct based on question type
-            if ($question['question_type'] === 0) { // multiple choice
-                if ($answer === $question['correct_answer']) {
-                    $correct_answers++;
+        foreach ($questions as $index => $question) {
+            $answer = isset($existing_answers[$question['question_id']]) ? $existing_answers[$question['question_id']] : '';
+            // Check for incomplete answers
+            if ($incomplete_index === -1) {
+                if ($question['question_type'] === 0 || $question['question_type'] === 2) {
+                    if (empty($answer)) {
+                        $incomplete_index = $index;
+                    }
+                } elseif ($question['question_type'] === 1) {
+                    $matchingPairs = json_decode($question['options'], true);
+                    $leftCount = count($matchingPairs);
+                    $savedAnswers = get_matching_saved_answers($question['question_id'], $leftCount);
+                    if (in_array('', $savedAnswers, true)) {
+                        $incomplete_index = $index;
+                    }
                 }
-            } elseif ($question['question_type'] === 1) { // matching
-                $matchingPairs = json_decode($question['options'], true);
-                $userAnswer = json_decode($answer, true);
-                if ($userAnswer && isset($userAnswer['left']) && isset($userAnswer['right'])) {
-                    $leftIndex = $userAnswer['left'];
-                    $rightIndex = $userAnswer['right'];
-                    if ($matchingPairs[$leftIndex]['right'] === $matchingPairs[$rightIndex]['right']) {
+            }
+            // Scoring logic (improved)
+            if (!empty($answer)) {
+                if ($question['question_type'] === 0) { // multiple choice
+                    if ($answer === $question['correct_answer']) {
+                        $correct_answers++;
+                    }
+                } elseif ($question['question_type'] === 1) { // matching
+                    $matchingPairs = json_decode($question['options'], true);
+                    $correctPairs = $question['correct_answer'];
+                    if (is_string($correctPairs)) {
+                        $correctPairs = json_decode($correctPairs, true);
+                    }
+                    $userAnswer = json_decode($answer, true);
+                    $isAllCorrect = true;
+                    if (is_array($userAnswer) && is_array($correctPairs) && count($userAnswer) === count($correctPairs)) {
+                        foreach ($correctPairs as $leftIdx => $pair) {
+                            $correctRight = $pair['right'];
+                            $userRight = isset($userAnswer[$leftIdx]) ? $userAnswer[$leftIdx] : null;
+                            if ($userRight !== $correctRight) {
+                                $isAllCorrect = false;
+                                break;
+                            }
+                        }
+                        if ($isAllCorrect) {
+                            $correct_answers++;
+                        }
+                    }
+                } elseif ($question['question_type'] === 2) { // grammar/text input
+                    $grammarData = json_decode($question['options'], true);
+                    $correct = isset($grammarData['correct']) ? trim($grammarData['correct']) : trim($question['correct_answer']);
+                    if (strtolower(trim($answer)) === strtolower($correct)) {
                         $correct_answers++;
                     }
                 }
-            } elseif ($question['question_type'] === 2) { // grammar
-                $grammarData = json_decode($question['options'], true);
-                if (strtolower(trim($answer)) === strtolower(trim($grammarData['correct']))) {
-                    $correct_answers++;
-                }
             }
+        }
+
+        // If incomplete, show error and redirect
+        if ($incomplete_index !== -1) {
+            $_SESSION['form_error'] = 'Please answer all questions before submitting.';
+            header('Location: take-quiz.php?id=' . $quiz_id . '&q=' . $incomplete_index);
+            exit();
         }
 
         // Calculate score
         $score = ($correct_answers / $total_questions) * 100;
 
-        // Update quiz attempt score
-        $stmt = $conn->prepare("UPDATE quiz_attempts SET score = ? WHERE attempt_id = ?");
+        // Update quiz attempt score and status
+        $stmt = $conn->prepare("UPDATE quiz_attempts SET score = ?, status = 1 WHERE attempt_id = ?");
         $stmt->execute([$score, $attempt_id]);
 
         // Record quiz result
@@ -120,19 +189,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
 
         $conn->commit();
 
-        // Clear session data
-        unset($_SESSION['quiz_questions']);
-        unset($_SESSION['current_question']);
-        unset($_SESSION['quiz_answers']);
-
         // Redirect to results page
-        header("Location: quiz-results.php?attempt_id=" . $attempt_id);
+        header("Location: quiz-results.php?attempt_id=$attempt_id");
         exit();
 
     } catch (PDOException $e) {
         $conn->rollBack();
-        $_SESSION['error'] = "Error submitting quiz: " . $e->getMessage();
+        $_SESSION['form_error'] = "Error submitting quiz: " . $e->getMessage();
     }
+}
+
+// Handle saving an answer
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_answer'])) {
+    $question_id = $_POST['question_id'];
+    $answer = $_POST['answer'];
+    $stmt = $conn->prepare("INSERT INTO quiz_answers (attempt_id, user_id, quiz_id, question_id, answer) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE answer = VALUES(answer)");
+    $stmt->execute([$attempt_id, $user_id, $quiz_id, $question_id, $answer]);
+    exit;
 }
 ?>
 <!DOCTYPE html>
@@ -224,11 +297,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
             <div class="col-lg-8">
                 <div class="card border-0 shadow-lg">
                     <div class="card-body p-4">
+                        <?php if ($show_intro): ?>
+                            <h2 class="mb-3"><?php echo htmlspecialchars($quiz['title']); ?></h2>
+                            <p class="mb-2 text-muted"><?php echo htmlspecialchars($quiz['description']); ?></p>
+                            <ul class="list-group list-group-flush mb-4">
+                                <li class="list-group-item"><strong>Questions:</strong> <?php echo count($questions); ?></li>
+                                <li class="list-group-item"><strong>Difficulty:</strong> <?php echo ['Beginner','Intermediate','Advanced'][$quiz['difficulty_level']]; ?></li>
+                            </ul>
+                            <form method="get" action="">
+                                <input type="hidden" name="id" value="<?php echo $quiz_id; ?>">
+                                <input type="hidden" name="start" value="1">
+                                <button type="submit" class="btn btn-primary btn-lg w-100">Start Quiz</button>
+                            </form>
+                        <?php else: ?>
                         <div class="d-flex justify-content-between align-items-center mb-4">
                             <h4 class="card-title"><?php echo htmlspecialchars($quiz['title']); ?></h4>
                             <span class="badge bg-primary">Question <?php echo $current + 1; ?>/<?php echo count($questions); ?></span>
                         </div>
-
                         <div class="progress mb-4">
                             <div class="progress-bar bg-primary" role="progressbar" 
                                  style="width: <?php echo $progress; ?>%" 
@@ -237,141 +322,109 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
                                  aria-valuemax="100">
                             </div>
                         </div>
-
-                        <div class="question-container mb-4">
-                            <p class="h5 mb-4"><?php echo htmlspecialchars($question['question_text']); ?></p>
-                            
-                            <?php if ($question['question_type'] === 0): // multiple_choice ?>
-                                <div class="options">
-                                    <?php 
-                                    $options = json_decode($question['options'], true);
-                                    foreach ($options as $key => $option): 
-                                        $isSelected = isset($_SESSION['quiz_answers'][$current]) && $_SESSION['quiz_answers'][$current] === $key;
-                                    ?>
-                                        <div class="card option-card mb-3 <?php echo $isSelected ? 'selected' : ''; ?>" 
-                                             data-answer="<?php echo $key; ?>"
-                                             onclick="selectAnswer('<?php echo $key; ?>')">
-                                            <div class="card-body py-3">
-                                                <div class="d-flex align-items-center">
-                                                    <div class="me-3">
-                                                        <span class="badge rounded-pill bg-light text-dark"><?php echo $key; ?></span>
+                        <form method="post" action="" id="quizForm">
+                            <?php if (isset($_SESSION['form_error'])): ?>
+                                <div class="alert alert-danger mb-3"><?php echo htmlspecialchars($_SESSION['form_error']); ?></div>
+                                <?php unset($_SESSION['form_error']); ?>
+                            <?php endif; ?>
+                            <div class="question-container mb-4">
+                                <p class="h5 mb-4"><?php echo htmlspecialchars($question['question_text']); ?></p>
+                                <?php if ($question['question_type'] === 0): // multiple_choice ?>
+                                    <div class="options">
+                                        <?php 
+                                        $options = json_decode($question['options'], true);
+                                        foreach ($options as $key => $option): 
+                                            $isSelected = isset($existing_answers[$question['question_id']]) && $existing_answers[$question['question_id']] === $key;
+                                        ?>
+                                            <div class="card option-card mb-3 <?php echo $isSelected ? 'selected' : ''; ?>" 
+                                                 data-answer="<?php echo $key; ?>"
+                                                 onclick="window.selectAnswer('<?php echo $key; ?>')">
+                                                <div class="card-body py-3">
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="me-3">
+                                                            <span class="badge rounded-pill bg-light text-dark"><?php echo $key; ?></span>
+                                                        </div>
+                                                        <div><?php echo htmlspecialchars($option); ?></div>
                                                     </div>
-                                                    <div><?php echo htmlspecialchars($option); ?></div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            <?php elseif ($question['question_type'] === 1): // matching ?>
-                                <div class="matching-container">
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php elseif ($question['question_type'] === 1): // matching ?>
                                     <?php 
                                     $matchingPairs = json_decode($question['options'], true);
                                     $leftItems = array_column($matchingPairs, 'left');
                                     $rightItems = array_column($matchingPairs, 'right');
                                     shuffle($rightItems); // Randomize right column
+                                    // If savedAnswers is a JSON string, decode it
+                                    $savedAnswers = isset($existing_answers[$question['question_id']]) ? json_decode($existing_answers[$question['question_id']], true) : [];
                                     ?>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="matching-left">
-                                                <?php foreach ($leftItems as $index => $left): ?>
-                                                    <div class="matching-item" 
-                                                         draggable="true"
-                                                         data-index="<?php echo $index; ?>"
-                                                         data-side="left">
-                                                        <div class="card mb-3">
-                                                            <div class="card-body">
-                                                                <div class="d-flex align-items-center">
-                                                                    <div class="me-3">
-                                                                        <span class="badge rounded-pill bg-primary"><?php echo $index + 1; ?></span>
-                                                                    </div>
-                                                                    <div><?php echo htmlspecialchars($left); ?></div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                <?php endforeach; ?>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="matching-right">
-                                                <?php foreach ($rightItems as $index => $right): ?>
-                                                    <div class="matching-item" 
-                                                         draggable="true"
-                                                         data-index="<?php echo $index; ?>"
-                                                         data-side="right">
-                                                        <div class="card mb-3">
-                                                            <div class="card-body">
-                                                                <div class="d-flex align-items-center">
-                                                                    <div class="me-3">
-                                                                        <span class="badge rounded-pill bg-secondary"><?php echo $index + 1; ?></span>
-                                                                    </div>
-                                                                    <div><?php echo htmlspecialchars($right); ?></div>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                <?php endforeach; ?>
+                                    <div class="matching-container">
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <div class="table-responsive">
+                                                    <table class="table align-middle mb-0">
+                                                        <thead>
+                                                            <tr>
+                                                                <th>Match</th>
+                                                                <th>With</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <?php foreach ($leftItems as $index => $left): ?>
+                                                            <tr>
+                                                                <td>
+                                                                    <span class="badge rounded-pill bg-primary me-2"><?php echo $index + 1; ?></span>
+                                                                    <?php echo htmlspecialchars($left); ?>
+                                                                </td>
+                                                                <td>
+                                                                    <select class="form-select matching-select" data-left="<?php echo $index; ?>" onchange="window.updateMatchingAnswer(<?php echo $index; ?>, this.value)">
+                                                                        <option value="" selected>Select...</option>
+                                                                        <?php foreach ($rightItems as $right): ?>
+                                                                            <option value="<?php echo htmlspecialchars($right); ?>" <?php echo (isset($savedAnswers[$index]) && $savedAnswers[$index] !== '' && $savedAnswers[$index] == $right) ? 'selected' : ''; ?>><?php echo htmlspecialchars($right); ?></option>
+                                                                        <?php endforeach; ?>
+                                                                    </select>
+                                                                </td>
+                                                            </tr>
+                                                            <?php endforeach; ?>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                    <div class="matching-connections mt-4">
-                                        <?php for ($i = 0; $i < count($leftItems); $i++): ?>
-                                            <div class="connection-line" data-left="<?php echo $i; ?>"></div>
-                                        <?php endfor; ?>
-                                    </div>
-                                </div>
-                            <?php elseif ($question['question_type'] === 2): // grammar ?>
-                                <div class="grammar-container">
-                                    <?php 
-                                    $grammarData = json_decode($question['options'], true);
-                                    $sentence = $grammarData['sentence'];
-                                    $correct = $grammarData['correct'];
-                                    ?>
-                                    <div class="card mb-3">
-                                        <div class="card-body">
-                                            <p class="mb-3"><?php echo htmlspecialchars($sentence); ?></p>
-                                            <div class="form-group">
-                                                <textarea class="form-control" 
-                                                          rows="3" 
-                                                          placeholder="Type your corrected sentence here..."
-                                                          onchange="updateGrammarAnswer(this.value)"><?php echo isset($_SESSION['quiz_answers'][$current]) ? htmlspecialchars($_SESSION['quiz_answers'][$current]) : ''; ?></textarea>
+                                <?php elseif ($question['question_type'] === 2): // grammar ?>
+                                    <div class="grammar-container">
+                                        <?php 
+                                        $grammarData = json_decode($question['options'], true);
+                                        $sentence = $grammarData['sentence'];
+                                        $correct = $grammarData['correct'];
+                                        ?>
+                                        <div class="card mb-3">
+                                            <div class="card-body">
+                                                <p class="mb-3"><?php echo htmlspecialchars($sentence); ?></p>
+                                                <div class="form-group">
+                                                    <textarea class="form-control" 
+                                                              rows="3" 
+                                                              placeholder="Type your corrected sentence here..."
+                                                              onchange="window.updateGrammarAnswer(this.value)"><?php echo isset($existing_answers[$question['question_id']]) ? htmlspecialchars($existing_answers[$question['question_id']]) : ''; ?></textarea>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="question-nav">
-        <div class="container">
-            <div class="row align-items-center">
-                <div class="col">
-                    <?php if ($current > 0): ?>
-                        <a href="?id=<?php echo $quiz_id; ?>&q=<?php echo $current - 1; ?>" class="btn btn-outline-primary">
-                            <i class="fas fa-arrow-left me-2"></i>Previous
-                        </a>
-                    <?php endif; ?>
-                </div>
-                <div class="col text-center">
-                    <span class="text-muted">Question <?php echo $current + 1; ?> of <?php echo count($questions); ?></span>
-                </div>
-                <div class="col text-end">
-                    <?php if ($current < count($questions) - 1): ?>
-                        <a href="?id=<?php echo $quiz_id; ?>&q=<?php echo $current + 1; ?>" class="btn btn-primary" id="nextBtn">
-                            Next<i class="fas fa-arrow-right ms-2"></i>
-                        </a>
-                    <?php else: ?>
-                        <form method="POST" style="display: inline;">
-                            <button type="submit" name="submit" class="btn btn-success" id="submitBtn">
-                                Submit Quiz<i class="fas fa-check ms-2"></i>
-                            </button>
+                                <?php endif; ?>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <button type="button" class="btn btn-outline-secondary" onclick="window.goToQuestion(<?php echo $current - 1; ?>)" <?php if ($current == 0) echo 'disabled'; ?>>Previous</button>
+                                <?php if ($current < count($questions) - 1): ?>
+                                    <button type="button" class="btn btn-primary" onclick="window.goToQuestion(<?php echo $current + 1; ?>)">Next</button>
+                                <?php else: ?>
+                                    <button type="submit" name="submit" class="btn btn-success">Submit Quiz</button>
+                                <?php endif; ?>
+                            </div>
                         </form>
-                    <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
         </div>
@@ -382,241 +435,286 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script>
-        function selectAnswer(answer) {
-            // Update UI immediately
-            const cards = document.querySelectorAll('.option-card');
-            cards.forEach(card => {
-                if (card.dataset.answer === answer) {
-                    card.classList.add('selected');
-                } else {
-                    card.classList.remove('selected');
-                }
-            });
-
-            // Save answer to server
-            fetch('ajax/save-quiz-answer.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `question=${<?php echo $current; ?>}&answer=${answer}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (!data.success) {
-                    console.error('Failed to save answer');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
-        }
-
-        function updateMatchingAnswer(leftIndex, rightIndex) {
-            const answer = {
-                left: leftIndex,
-                right: rightIndex
-            };
-
-            // Save answer to server
-            fetch('ajax/save-quiz-answer.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `question=${<?php echo $current; ?>}&answer=${JSON.stringify(answer)}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (!data.success) {
-                    console.error('Failed to save answer');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
-        }
-
-        function updateGrammarAnswer(answer) {
-            // Save answer to server
-            fetch('ajax/save-quiz-answer.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `question=${<?php echo $current; ?>}&answer=${encodeURIComponent(answer)}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (!data.success) {
-                    console.error('Failed to save answer');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-            });
-        }
-
-        // Initialize selected answers when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            const selectedAnswer = <?php echo isset($_SESSION['quiz_answers'][$current]) ? json_encode($_SESSION['quiz_answers'][$current]) : 'null'; ?>;
-            if (selectedAnswer) {
-                if (<?php echo $question['question_type']; ?> === 0) { // multiple_choice
-                    const selectedCard = document.querySelector(`.option-card[data-answer="${selectedAnswer}"]`);
-                    if (selectedCard) {
-                        selectedCard.classList.add('selected');
-                    }
-                } else if (<?php echo $question['question_type']; ?> === 1) { // matching
-                    if (typeof selectedAnswer === 'object' && selectedAnswer.left !== undefined) {
-                        const select = document.querySelector(`.matching-select[data-left="${selectedAnswer.left}"]`);
-                        if (select) {
-                            select.value = selectedAnswer.right;
-                        }
-                    }
-                } else if (<?php echo $question['question_type']; ?> === 2) { // grammar
-                    const textarea = document.querySelector('.grammar-container textarea');
-                    if (textarea) {
-                        textarea.value = selectedAnswer;
-                    }
-                }
+    // Always define all global quiz JS functions
+    window.goToQuestion = function(q) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('q', q);
+        window.location.href = url.toString();
+    };
+    window.selectAnswer = function(answer) {
+        const cards = document.querySelectorAll('.option-card');
+        cards.forEach(card => {
+            if (card.dataset.answer === answer) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
             }
         });
+        fetch('ajax/save-quiz-answer.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: "question=<?php echo $question['question_id']; ?>&answer=" + encodeURIComponent(answer) + "&quiz_id=<?php echo $quiz_id; ?>"
+        });
+    };
+    window.matchingAnswers = <?php echo json_encode($question['question_type'] === 1 ? $savedAnswers : []); ?>;
+    window.updateMatchingAnswer = function(leftIndex, rightValue) {
+        if (!window.matchingAnswers) window.matchingAnswers = [];
+        window.matchingAnswers[leftIndex] = rightValue;
+        fetch('ajax/save-quiz-answer.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: "question=<?php echo $question['question_id']; ?>&answer=" + encodeURIComponent(JSON.stringify(window.matchingAnswers)) + "&quiz_id=<?php echo $quiz_id; ?>"
+        });
+    };
+    window.updateGrammarAnswer = function(answer) {
+        fetch('ajax/save-quiz-answer.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: "question=<?php echo $question['question_id']; ?>&answer=" + encodeURIComponent(answer) + "&quiz_id=<?php echo $quiz_id; ?>"
+        });
+    };
 
-        // Add matching drag and drop functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const matchingContainer = document.querySelector('.matching-container');
-            if (matchingContainer) {
-                const items = document.querySelectorAll('.matching-item');
-                const connections = document.querySelectorAll('.connection-line');
-                let draggedItem = null;
-                let draggedConnection = null;
+    function isAnswerComplete(answer, type) {
+        if (type === 0 || type === 2) {
+            // Multiple choice or grammar: must not be empty
+            return !!answer && answer !== '';
+        } else if (type === 1) {
+            // Matching: must be a full array, all not empty
+            if (!answer) return false;
+            if (typeof answer === 'string') {
+                try { answer = JSON.parse(answer); } catch (e) { return false; }
+            }
+            if (!Array.isArray(answer)) return false;
+            return answer.every(a => a !== '');
+        }
+        return false;
+    }
 
-                items.forEach(item => {
-                    item.addEventListener('dragstart', handleDragStart);
-                    item.addEventListener('dragend', handleDragEnd);
-                    item.addEventListener('dragover', handleDragOver);
-                    item.addEventListener('drop', handleDrop);
-                });
+    document.querySelector('form').addEventListener('submit', function(e) {
+        // Gather all answers and question types from PHP
+        const allAnswers = <?php echo json_encode($existing_answers); ?>;
+        const allTypes = <?php echo json_encode(array_column($questions, 'question_type')); ?>;
+        let firstIncomplete = -1;
+        for (let i = 0; i < allTypes.length; i++) {
+            if (!isAnswerComplete(allAnswers[$questions[$i]['question_id']], allTypes[$i])) {
+                firstIncomplete = i;
+                break;
+            }
+        }
+        if (firstIncomplete !== -1) {
+            e.preventDefault();
+            // Store error in sessionStorage for after reload
+            sessionStorage.setItem('quizError', 'Please answer all questions before submitting. Redirecting to the first incomplete question.');
+            window.goToQuestion(firstIncomplete);
+            return false;
+        }
+        // Hide alert if all complete
+        document.getElementById('quiz-error-alert').classList.add('d-none');
+    });
 
-                function handleDragStart(e) {
-                    draggedItem = this;
-                    this.classList.add('dragging');
-                    e.dataTransfer.setData('text/plain', this.dataset.index);
-                    e.dataTransfer.setData('side', this.dataset.side);
+    // On page load, show error from sessionStorage if present
+    window.addEventListener('DOMContentLoaded', function() {
+        const errorMsg = sessionStorage.getItem('quizError');
+        if (errorMsg) {
+            const alertBox = document.getElementById('quiz-error-alert');
+            alertBox.textContent = errorMsg;
+            alertBox.classList.remove('d-none');
+            sessionStorage.removeItem('quizError');
+        }
+    });
+
+    // Initialize selected answers when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        const selectedAnswer = <?php echo isset($existing_answers[$question['question_id']]) ? json_encode($existing_answers[$question['question_id']]) : 'null'; ?>;
+        if (selectedAnswer) {
+            if (<?php echo $question['question_type']; ?> === 0) { // multiple_choice
+                const selectedCard = document.querySelector(`.option-card[data-answer="${selectedAnswer}"]`);
+                if (selectedCard) {
+                    selectedCard.classList.add('selected');
                 }
-
-                function handleDragEnd(e) {
-                    this.classList.remove('dragging');
-                    draggedItem = null;
-                }
-
-                function handleDragOver(e) {
-                    e.preventDefault();
-                    if (this.dataset.side !== draggedItem.dataset.side) {
-                        this.classList.add('drag-over');
+            } else if (<?php echo $question['question_type']; ?> === 1) { // matching
+                if (typeof selectedAnswer === 'object' && selectedAnswer.left !== undefined) {
+                    const select = document.querySelector(`.matching-select[data-left="${selectedAnswer.left}"]`);
+                    if (select) {
+                        select.value = selectedAnswer.right;
                     }
                 }
+            } else if (<?php echo $question['question_type']; ?> === 2) { // grammar
+                const textarea = document.querySelector('.grammar-container textarea');
+                if (textarea) {
+                    textarea.value = selectedAnswer;
+                }
+            }
+        }
+    });
 
-                function handleDrop(e) {
-                    e.preventDefault();
-                    this.classList.remove('drag-over');
+    // Add matching drag and drop functionality
+    document.addEventListener('DOMContentLoaded', function() {
+        const matchingContainer = document.querySelector('.matching-container');
+        if (matchingContainer) {
+            const items = document.querySelectorAll('.matching-item');
+            const connections = document.querySelectorAll('.connection-line');
+            let draggedItem = null;
+            let draggedConnection = null;
 
-                    if (this.dataset.side === draggedItem.dataset.side) {
-                        return;
-                    }
+            items.forEach(item => {
+                item.addEventListener('dragstart', handleDragStart);
+                item.addEventListener('dragend', handleDragEnd);
+                item.addEventListener('dragover', handleDragOver);
+                item.addEventListener('drop', handleDrop);
+            });
 
-                    const leftIndex = draggedItem.dataset.side === 'left' ? draggedItem.dataset.index : this.dataset.index;
-                    const rightIndex = draggedItem.dataset.side === 'right' ? draggedItem.dataset.index : this.dataset.index;
+            function handleDragStart(e) {
+                draggedItem = this;
+                this.classList.add('dragging');
+                e.dataTransfer.setData('text/plain', this.dataset.index);
+                e.dataTransfer.setData('side', this.dataset.side);
+            }
 
-                    // Update connection line
-                    const connection = document.querySelector(`.connection-line[data-left="${leftIndex}"]`);
-                    if (connection) {
-                        const leftItem = document.querySelector(`.matching-item[data-side="left"][data-index="${leftIndex}"]`);
-                        const rightItem = document.querySelector(`.matching-item[data-side="right"][data-index="${rightIndex}"]`);
-                        
-                        if (leftItem && rightItem) {
-                            const leftRect = leftItem.getBoundingClientRect();
-                            const rightRect = rightItem.getBoundingClientRect();
-                            const containerRect = matchingContainer.getBoundingClientRect();
+            function handleDragEnd(e) {
+                this.classList.remove('dragging');
+                draggedItem = null;
+            }
 
-                            const leftX = leftRect.right - containerRect.left;
-                            const leftY = leftRect.top + leftRect.height / 2 - containerRect.top;
-                            const rightX = rightRect.left - containerRect.left;
-                            const rightY = rightRect.top + rightRect.height / 2 - containerRect.top;
+            function handleDragOver(e) {
+                e.preventDefault();
+                if (this.dataset.side !== draggedItem.dataset.side) {
+                    this.classList.add('drag-over');
+                }
+            }
 
-                            const length = Math.sqrt(Math.pow(rightX - leftX, 2) + Math.pow(rightY - leftY, 2));
-                            const angle = Math.atan2(rightY - leftY, rightX - leftX) * 180 / Math.PI;
+            function handleDrop(e) {
+                e.preventDefault();
+                this.classList.remove('drag-over');
 
-                            connection.style.width = `${length}px`;
-                            connection.style.left = `${leftX}px`;
-                            connection.style.top = `${leftY}px`;
-                            connection.style.transform = `rotate(${angle}deg)`;
-                            connection.style.display = 'block';
-
-                            // Mark items as matched
-                            leftItem.classList.add('matched');
-                            rightItem.classList.add('matched');
-
-                            // Save answer
-                            const answer = {
-                                left: parseInt(leftIndex),
-                                right: parseInt(rightIndex)
-                            };
-
-                            fetch('ajax/save-quiz-answer.php', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/x-www-form-urlencoded',
-                                },
-                                body: `question=${<?php echo $current; ?>}&answer=${JSON.stringify(answer)}`
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                                if (!data.success) {
-                                    console.error('Failed to save answer');
-                                }
-                            })
-                            .catch(error => {
-                                console.error('Error:', error);
-                            });
-                        }
-                    }
+                if (this.dataset.side === draggedItem.dataset.side) {
+                    return;
                 }
 
-                // Initialize existing matches
-                const selectedAnswer = <?php echo isset($_SESSION['quiz_answers'][$current]) ? json_encode($_SESSION['quiz_answers'][$current]) : 'null'; ?>;
-                if (selectedAnswer && typeof selectedAnswer === 'object' && selectedAnswer.left !== undefined) {
-                    const leftItem = document.querySelector(`.matching-item[data-side="left"][data-index="${selectedAnswer.left}"]`);
-                    const rightItem = document.querySelector(`.matching-item[data-side="right"][data-index="${selectedAnswer.right}"]`);
+                const leftIndex = draggedItem.dataset.side === 'left' ? draggedItem.dataset.index : this.dataset.index;
+                const rightIndex = draggedItem.dataset.side === 'right' ? draggedItem.dataset.index : this.dataset.index;
+
+                // Update connection line
+                const connection = document.querySelector(`.connection-line[data-left="${leftIndex}"]`);
+                if (connection) {
+                    const leftItem = document.querySelector(`.matching-item[data-side="left"][data-index="${leftIndex}"]`);
+                    const rightItem = document.querySelector(`.matching-item[data-side="right"][data-index="${rightIndex}"]`);
                     
                     if (leftItem && rightItem) {
+                        const leftRect = leftItem.getBoundingClientRect();
+                        const rightRect = rightItem.getBoundingClientRect();
+                        const containerRect = matchingContainer.getBoundingClientRect();
+
+                        const leftX = leftRect.right - containerRect.left;
+                        const leftY = leftRect.top + leftRect.height / 2 - containerRect.top;
+                        const rightX = rightRect.left - containerRect.left;
+                        const rightY = rightRect.top + rightRect.height / 2 - containerRect.top;
+
+                        const length = Math.sqrt(Math.pow(rightX - leftX, 2) + Math.pow(rightY - leftY, 2));
+                        const angle = Math.atan2(rightY - leftY, rightX - leftX) * 180 / Math.PI;
+
+                        connection.style.width = `${length}px`;
+                        connection.style.left = `${leftX}px`;
+                        connection.style.top = `${leftY}px`;
+                        connection.style.transform = `rotate(${angle}deg)`;
+                        connection.style.display = 'block';
+
+                        // Mark items as matched
                         leftItem.classList.add('matched');
                         rightItem.classList.add('matched');
-                        
-                        const connection = document.querySelector(`.connection-line[data-left="${selectedAnswer.left}"]`);
-                        if (connection) {
-                            const leftRect = leftItem.getBoundingClientRect();
-                            const rightRect = rightItem.getBoundingClientRect();
-                            const containerRect = matchingContainer.getBoundingClientRect();
 
-                            const leftX = leftRect.right - containerRect.left;
-                            const leftY = leftRect.top + leftRect.height / 2 - containerRect.top;
-                            const rightX = rightRect.left - containerRect.left;
-                            const rightY = rightRect.top + rightRect.height / 2 - containerRect.top;
+                        // Save answer
+                        const answer = {
+                            left: parseInt(leftIndex),
+                            right: parseInt(rightIndex)
+                        };
 
-                            const length = Math.sqrt(Math.pow(rightX - leftX, 2) + Math.pow(rightY - leftY, 2));
-                            const angle = Math.atan2(rightY - leftY, rightX - leftX) * 180 / Math.PI;
-
-                            connection.style.width = `${length}px`;
-                            connection.style.left = `${leftX}px`;
-                            connection.style.top = `${leftY}px`;
-                            connection.style.transform = `rotate(${angle}deg)`;
-                            connection.style.display = 'block';
-                        }
+                        fetch('ajax/save-quiz-answer.php', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: "question=<?php echo $question['question_id']; ?>&answer=" + encodeURIComponent(JSON.stringify(answer)) + "&quiz_id=<?php echo $quiz_id; ?>"
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (!data.success) {
+                                console.error('Failed to save answer');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                        });
                     }
                 }
             }
+
+            // Initialize existing matches
+            const selectedAnswer = <?php echo isset($existing_answers[$question['question_id']]) ? json_encode($existing_answers[$question['question_id']]) : 'null'; ?>;
+            if (selectedAnswer && typeof selectedAnswer === 'object' && selectedAnswer.left !== undefined) {
+                const leftItem = document.querySelector(`.matching-item[data-side="left"][data-index="${selectedAnswer.left}"]`);
+                const rightItem = document.querySelector(`.matching-item[data-side="right"][data-index="${selectedAnswer.right}"]`);
+                
+                if (leftItem && rightItem) {
+                    leftItem.classList.add('matched');
+                    rightItem.classList.add('matched');
+                    
+                    const connection = document.querySelector(`.connection-line[data-left="${selectedAnswer.left}"]`);
+                    if (connection) {
+                        const leftRect = leftItem.getBoundingClientRect();
+                        const rightRect = rightItem.getBoundingClientRect();
+                        const containerRect = matchingContainer.getBoundingClientRect();
+
+                        const leftX = leftRect.right - containerRect.left;
+                        const leftY = leftRect.top + leftRect.height / 2 - containerRect.top;
+                        const rightX = rightRect.left - containerRect.left;
+                        const rightY = rightRect.top + rightRect.height / 2 - containerRect.top;
+
+                        const length = Math.sqrt(Math.pow(rightX - leftX, 2) + Math.pow(rightY - leftY, 2));
+                        const angle = Math.atan2(rightY - leftY, rightX - leftX) * 180 / Math.PI;
+
+                        connection.style.width = `${length}px`;
+                        connection.style.left = `${leftX}px`;
+                        connection.style.top = `${leftY}px`;
+                        connection.style.transform = `rotate(${angle}deg)`;
+                        connection.style.display = 'block';
+                    }
+                }
+            }
+        }
+    });
+
+    // Matching select logic to disable already chosen right options in other dropdowns
+    function updateMatchingDropdowns() {
+        const selects = document.querySelectorAll('.matching-select');
+        // Gather all selected values
+        let selected = Array.from(selects).map(sel => sel.value).filter(v => v !== '');
+        selects.forEach(sel => {
+            let current = sel.value;
+            Array.from(sel.options).forEach(opt => {
+                if (opt.value === '') return;
+                // Disable if selected elsewhere and not the current selection
+                if (selected.includes(opt.value) && opt.value !== current) {
+                    opt.disabled = true;
+                } else {
+                    opt.disabled = false;
+                }
+            });
         });
+    }
+    // Attach event listeners
+    window.addEventListener('DOMContentLoaded', function() {
+        updateMatchingDropdowns();
+        document.querySelectorAll('.matching-select').forEach(sel => {
+            sel.addEventListener('change', updateMatchingDropdowns);
+        });
+    });
     </script>
 </body>
-</html> 
+</html>

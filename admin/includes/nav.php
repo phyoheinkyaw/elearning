@@ -9,6 +9,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
 ?>
 <!-- Admin Sidebar -->
 <aside class="admin-sidebar">
+    
     <div class="sidebar-header">
         <a href="index.php" class="sidebar-brand">
             <i class="fas fa-graduation-cap"></i>
@@ -74,6 +75,14 @@ $current_page = basename($_SERVER['PHP_SELF']);
             <i class="fas fa-bars"></i>
         </button>
         <div class="navbar-right">
+            <form method="get" action="search.php" class="d-inline-block align-middle" style="margin-right: 10px;">
+                <div class="input-group input-group-sm">
+                    <input type="text" name="q" class="form-control" placeholder="Search everything..." required style="min-width: 160px;">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </form>
             <a href="../index.php" class="btn btn-outline-primary btn-sm" target="_blank">
                 <i class="fas fa-external-link-alt me-1"></i>
                 Visit Site

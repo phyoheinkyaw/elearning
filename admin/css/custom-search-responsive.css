@@ -1,0 +1,6 @@
+@media (max-width: 767.98px) {
+  .admin-content .row.g-4 > [class*='col-'] {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+}

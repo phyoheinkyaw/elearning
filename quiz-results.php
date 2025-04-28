@@ -86,7 +86,6 @@ $questions = $stmt->fetchAll();
                                 <div class="card-body">
                                     <h6 class="card-title">Question <?php echo $index + 1; ?></h6>
                                     <p class="card-text"><?php echo htmlspecialchars($question['question_text']); ?></p>
-                                    
                                     <?php if ($question['question_type'] === 0): // multiple_choice ?>
                                         <?php 
                                         $options = json_decode($question['options'], true);
@@ -106,6 +105,54 @@ $questions = $stmt->fetchAll();
                                                 </label>
                                             </div>
                                         <?php endforeach; ?>
+                                    <?php elseif ($question['question_type'] === 1): // matching ?>
+                                        <?php 
+                                        $pairs = json_decode($question['options'], true);
+                                        $userAnswer = is_string($question['answer']) ? json_decode($question['answer'], true) : $question['answer'];
+                                        $correctPairs = is_string($question['correct_answer']) ? json_decode($question['correct_answer'], true) : $question['correct_answer'];
+                                        ?>
+                                        <table class="table table-bordered">
+                                            <thead><tr><th>Left</th><th>Your Match</th><th>Correct Match</th></tr></thead>
+                                            <tbody>
+                                            <?php foreach ($pairs as $i => $pair): ?>
+                                                <tr>
+                                                    <td><?php echo htmlspecialchars($pair['left']); ?></td>
+                                                    <td>
+                                                        <?php
+                                                        $userRight = isset($userAnswer[$i]) ? $userAnswer[$i] : null;
+                                                        echo $userRight !== null && $userRight !== '' ? htmlspecialchars($userRight) : '<span class="text-danger">No answer</span>';
+                                                        ?>
+                                                    </td>
+                                                    <td>
+                                                        <?php $correctRight = isset($correctPairs[$i]['right']) ? $correctPairs[$i]['right'] : null; echo $correctRight !== null ? htmlspecialchars($correctRight) : '-'; ?>
+                                                        <?php if ($userRight !== null && $userRight !== '' && $correctRight !== null && $userRight === $correctRight): ?>
+                                                            <i class="fas fa-check text-success ms-2"></i>
+                                                        <?php elseif ($userRight !== null && $userRight !== ''): ?>
+                                                            <i class="fas fa-times text-danger ms-2"></i>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    <?php elseif ($question['question_type'] === 2): // grammar/text input ?>
+                                        <div class="mb-2">
+                                            <strong>Your Answer:</strong><br>
+                                            <?php echo isset($question['answer']) && $question['answer'] !== '' ? htmlspecialchars($question['answer']) : '<span class="text-danger">No answer</span>'; ?>
+                                        </div>
+                                        <div class="mb-2">
+                                            <strong>Correct Answer:</strong><br>
+                                            <?php 
+                                            $grammarData = json_decode($question['options'], true);
+                                            $correct = isset($grammarData['correct']) ? $grammarData['correct'] : $question['correct_answer'];
+                                            echo htmlspecialchars($correct);
+                                            ?>
+                                            <?php if (isset($question['answer']) && strtolower(trim($question['answer'])) === strtolower(trim($correct))): ?>
+                                                <i class="fas fa-check text-success ms-2"></i>
+                                            <?php elseif (isset($question['answer']) && $question['answer'] !== ''): ?>
+                                                <i class="fas fa-times text-danger ms-2"></i>
+                                            <?php endif; ?>
+                                        </div>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -127,4 +174,4 @@ $questions = $stmt->fetchAll();
     <!-- jQuery -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 </body>
-</html> 
+</html>

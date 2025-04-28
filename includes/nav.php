@@ -26,13 +26,10 @@ $PATH_PREFIX = strpos($current_url, 'games/wordscapes') !== false ? '../../' : '
                 </li>
                 <?php if (isset($_SESSION['user_id'])): ?>
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $PATH_PREFIX ?>my-courses.php">My Courses</a>
+                    <a class="nav-link" href="<?= $PATH_PREFIX ?>chatbot.php">Chatbot</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $PATH_PREFIX ?>quizzes.php">Quizzes</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="<?= $PATH_PREFIX ?>games/wordscapes/">Games</a>
+                    <a class="nav-link" href="<?= $PATH_PREFIX ?>pronunciation.php">Pronunciation Test</a>
                 </li>
                 <?php endif; ?>
                 <li class="nav-item">
@@ -42,7 +39,10 @@ $PATH_PREFIX = strpos($current_url, 'games/wordscapes') !== false ? '../../' : '
                     <a class="nav-link" href="<?= $PATH_PREFIX ?>dictionary.php">Dictionary</a>
                 </li>
             </ul>
-
+            <form class="d-flex me-3" id="global-search-form" action="<?= $PATH_PREFIX ?>search.php" method="get" role="search">
+                <input class="form-control me-2" type="search" name="q" placeholder="Search all..." aria-label="Search" required style="min-width:170px;">
+                <button class="btn btn-outline-primary" type="submit"><i class="fas fa-search"></i></button>
+            </form>
             <ul class="navbar-nav">
                 <?php if (isset($_SESSION['user_id'])): ?>
                 <?php
@@ -105,6 +105,12 @@ $PATH_PREFIX = strpos($current_url, 'games/wordscapes') !== false ? '../../' : '
                         <li>
                             <hr class="dropdown-divider">
                         </li>
+                        <li><a class="dropdown-item" href="<?= $PATH_PREFIX ?>quizzes.php">
+                                <i class="fas fa-question-circle me-2"></i>Quizzes
+                        </a></li>
+                        <li><a class="dropdown-item" href="<?= $PATH_PREFIX ?>games/wordscapes/">
+                                <i class="fas fa-gamepad me-2"></i>Games
+                        </a></li>
                         <li><a class="dropdown-item" href="<?= $PATH_PREFIX ?>logout.php">
                                 <i class="fas fa-sign-out-alt me-2"></i>Logout
                             </a></li>
