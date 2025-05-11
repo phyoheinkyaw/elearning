@@ -220,6 +220,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_answer'])) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="css/custom.css" rel="stylesheet">
+    <link href="css/floating-chatbot.css" rel="stylesheet">
+    <!-- Search Autocomplete CSS -->
+    <link href="css/search-autocomplete.css" rel="stylesheet">
     <style>
         .question-nav {
             position: fixed;
@@ -288,6 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_answer'])) {
             pointer-events: none;
         }
     </style>
+    <!-- Floating Chatbot CSS -->
 </head>
 <body class="pb-5">
     <?php include 'includes/nav.php'; ?>
@@ -716,5 +720,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_answer'])) {
         });
     });
     </script>
+    <!-- Include Floating Chatbot -->
+    <?php include 'includes/floating-chatbot.php'; ?>
+    
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Marked.js for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Floating Chatbot JS -->
+    <script src="js/floating-chatbot.js"></script>
 </body>
 </html>

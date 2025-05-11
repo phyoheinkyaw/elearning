@@ -91,3 +91,10 @@
         </div>
     </div>
 </footer>
+
+<!-- Common JavaScript Files -->
+<!-- jQuery (if not already included) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Search Autocomplete JS -->
+<script src="<?= $PATH_PREFIX ?? '' ?>js/search-autocomplete.js"></script>

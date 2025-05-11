@@ -1,8 +1,40 @@
+/**
+ * Pronunciation Practice Module
+ * File: js/pronunciation.js
+ * 
+ * This module handles the pronunciation practice feature using browser speech recognition
+ * and OpenRouter AI API for generating practice content and providing feedback.
+ * 
+ * Features:
+ * - Speech recognition for capturing user's pronunciation
+ * - AI-generated practice content (words, sentences, paragraphs)
+ * - AI feedback on pronunciation accuracy
+ * - History storage for tracking progress
+ */
+
 // Pronunciation Practice Logic
 // Uses browser speech recognition and OpenRouter API for generation and feedback
 
 // ========== CONFIG ==========
-const PRACTICE_STORAGE_KEY = "pronunciation_practice_history";
+const BASE_STORAGE_KEY = "pronunciation_practice_history";
+let PRACTICE_STORAGE_KEY = BASE_STORAGE_KEY;
+
+// Get user ID from the page if available
+const getUserId = () => {
+  // Try to get user_id from a data attribute on body
+  const userId = document.body.getAttribute('data-user-id') || 
+                document.querySelector('meta[name="user-id"]')?.getAttribute('content') || 
+                'guest';
+  return userId;
+};
+
+// Update storage key with user ID
+document.addEventListener('DOMContentLoaded', () => {
+  const userId = getUserId();
+  PRACTICE_STORAGE_KEY = `${BASE_STORAGE_KEY}_${userId}`;
+  // Load history after setting the correct key
+  renderHistory();
+});
 
 // ========== UI ELEMENTS ==========
 const practiceType = document.getElementById("practiceType");
@@ -43,12 +75,79 @@ function showToast(msg, type = "info") {
   }, 3500);
 }
 
+// Show API key error modal for user to fix
+function showApiKeyErrorModal() {
+  // Only create modal if it doesn't exist yet
+  if (!document.getElementById('apiKeyErrorModal')) {
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'apiKeyErrorModal';
+    modal.tabIndex = '-1';
+    modal.setAttribute('aria-labelledby', 'apiKeyErrorModalLabel');
+    modal.setAttribute('aria-hidden', 'true');
+    
+    modal.innerHTML = `
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header bg-warning">
+            <h5 class="modal-title" id="apiKeyErrorModalLabel">API Key Missing</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p>The OpenRouter API key is missing or invalid. To fix this:</p>
+            <ol>
+              <li>Create a file named <code>.env</code> in the root directory of your website</li>
+              <li>Add the following line to the file:<br>
+              <code>OPENROUTER_API_KEY=your_api_key_here</code></li>
+              <li>Replace <code>your_api_key_here</code> with your actual OpenRouter API key</li>
+              <li>Save the file and refresh this page</li>
+            </ol>
+            <p>You can get an API key from <a href="https://openrouter.ai/keys" target="_blank">OpenRouter.ai</a></p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  }
+  
+  // Show the modal
+  const bsModal = new bootstrap.Modal(document.getElementById('apiKeyErrorModal'));
+  bsModal.show();
+}
+
 // ========== API KEY HANDLING ==========
 async function getApiKey() {
-  const resp = await fetch("ajax/get-openrouter-key.php");
-  if (!resp.ok) throw new Error("API key fetch failed");
-  const data = await resp.json();
-  return data.key;
+  try {
+    console.log("Fetching API key");
+    const resp = await fetch("ajax/get-openrouter-key.php");
+    
+    if (!resp.ok) {
+      console.error("API key fetch failed with status:", resp.status);
+      if (resp.status === 404 || resp.status === 500) {
+        // Show modal to help user create the .env file
+        showApiKeyErrorModal();
+      }
+      throw new Error("API key fetch failed: " + resp.status);
+    }
+    
+    const data = await resp.json();
+    
+    if (!data || !data.key) {
+      console.error("Invalid API key response format:", data);
+      showApiKeyErrorModal();
+      throw new Error("Invalid API key format");
+    }
+    
+    console.log("API key retrieved successfully");
+    return data.key;
+  } catch (error) {
+    console.error("Error fetching API key:", error);
+    throw error;
+  }
 }
 
 // ========== GENERATE PRACTICE CONTENT ==========
@@ -64,7 +163,7 @@ async function generatePracticeContent(type, level) {
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "google/learnlm-1.5-pro-experimental:free",
+        model: "meta-llama/llama-4-scout:free",
         messages: [{ role: "user", content: prompt }],
         max_tokens: type === "word" ? 5 : type === "sentence" ? 20 : 60,
         temperature: 0.7,
@@ -128,46 +227,113 @@ if (recognition) {
 
 // ========== FEEDBACK RENDERING ==========
 function renderFeedback(feedback) {
-  // Use a Markdown parser if available, else fallback to simple formatting
-  let html = "";
-  if (window.marked) {
-    html = marked.parse(feedback);
-  } else {
-    html = feedback.replace(/\n/g, "<br>");
+  if (!feedback) {
+    feedbackBox.innerHTML = '<div class="alert alert-warning">No feedback available.</div>';
+    return;
   }
-  feedbackBox.innerHTML = html;
+  
+  try {
+    // Use a Markdown parser if available, else fallback to simple formatting
+    let html = "";
+    if (window.marked && typeof window.marked.parse === "function") {
+      html = marked.parse(feedback);
+    } else {
+      // Basic formatting for markdown-like syntax
+      html = feedback
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')           // Italic
+        .replace(/\n/g, '<br>');                        // Line breaks
+    }
+    
+    feedbackBox.innerHTML = `<div class="p-3">${html}</div>`;
+  } catch (error) {
+    console.error("Error rendering feedback:", error);
+    feedbackBox.innerHTML = `<div class="alert alert-warning">Error rendering feedback: ${error.message}</div>
+                           <div class="p-3">${feedback}</div>`;
+  }
 }
 
 // ========== AI FEEDBACK ==========
 async function getFeedback(target, transcript) {
-  const apiKey = await getApiKey();
-  const prompt = `You are an English pronunciation coach. Compare the following target text and the user's spoken transcript. Give feedback on accuracy, missing or extra words, and suggestions for improvement. Do NOT comment on accent or voice quality.\n\nHighlight any words or phrases that require attention using **bold** for errors and *italic* for suggestions or improvements.\n\nReturn only the feedback, feedback text needs to be bold and use as title. Other feedback response start from new line.\n\nTarget: ${target}\nUser Transcript: ${transcript}`;
-  const response = await fetch(
-    "https://openrouter.ai/api/v1/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "google/learnlm-1.5-pro-experimental:free",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 120,
-        temperature: 0.5,
-      }),
+  try {
+    const apiKey = await getApiKey();
+    if (!apiKey) {
+      console.error("Failed to get API key");
+      return "No feedback available. API key not found.";
     }
-  );
-  const data = await response.json();
-  const feedback =
-    data.choices && data.choices[0]
-      ? data.choices[0].message.content.trim()
-      : "No feedback.";
-  return feedback;
+    
+    // Track current location for accurate referer header
+    const currentLocation = window.location.origin;
+    const currentPage = window.location.pathname;
+    
+    // Improved prompt with clearer formatting instructions
+    const prompt = `You are an English pronunciation coach helping a language learner. 
+    
+Task: Compare the target text with the user's transcript and provide helpful feedback. use "you pronounced" instead of "your transcript".
+
+Target text: "${target}"
+User's transcript: "${transcript}"
+
+Instructions:
+1. Highlight any mispronounced, missing, or extra words
+2. Use **bold** for errors and *italic* for suggestions
+3. Be encouraging and constructive
+4. Format your response with a clear "Feedback:" heading
+5. Keep feedback concise and actionable
+6. Focus only on pronunciation accuracy, not on accent or voice quality
+7. Add relavant emojis to make the feedback more engaging
+
+Example format:
+**Feedback:**
+[Your specific feedback about accuracy]
+[Point out specific words with issues]
+[End with an encouraging note]`;
+    
+    console.log("Sending feedback request to OpenRouter API");
+    const response = await fetch(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+          "HTTP-Referer": currentLocation+currentPage,
+          "X-Title": "ELearning Pronunciation Practice"
+        },
+        body: JSON.stringify({
+          model: "meta-llama/llama-4-scout:free",
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: 300,
+          temperature: 0.5,
+        }),
+      }
+    );
+    
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error("API response not OK:", response.status, errorData);
+      return `API Error: ${response.status}. Please try again later.`;
+    }
+    
+    const data = await response.json();
+    console.log("API response received:", data);
+    
+    if (!data || !data.choices || !data.choices[0]) {
+      console.error("Invalid API response format:", data);
+      return "No feedback available. Invalid response from API.";
+    }
+    
+    const feedback = data.choices[0].message.content.trim();
+    return feedback || "No specific feedback provided. Your pronunciation was likely good!";
+  } catch (error) {
+    console.error("Error getting feedback:", error);
+    return `Error: ${error.message}. Please try again.`;
+  }
 }
 
 // ========== HISTORY STORAGE ==========
 function saveToHistory(target, transcript, feedback) {
+  const userId = getUserId();
   let history = JSON.parse(localStorage.getItem(PRACTICE_STORAGE_KEY) || "[]");
   const type = practiceType.value;
   history.unshift({
@@ -175,6 +341,7 @@ function saveToHistory(target, transcript, feedback) {
     transcript,
     feedback,
     type,
+    userId,
     time: new Date().toISOString(),
   });
   if (history.length > 30) history = history.slice(0, 30);
@@ -287,7 +454,8 @@ feedbackBtn.addEventListener("click", async function () {
     saveToHistory(currentTarget, currentTranscript, feedback);
     showToast("Feedback received!", "success");
   } catch (e) {
-    hideLoader(feedbackBox, "Failed to get feedback.");
+    console.error("Feedback error:", e);
+    hideLoader(feedbackBox, `Failed to get feedback: ${e.message}`);
     showToast("Failed to get feedback.", "danger");
   }
   feedbackBtn.disabled = false;

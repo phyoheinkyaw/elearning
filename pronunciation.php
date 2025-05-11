@@ -3,6 +3,7 @@ session_start();
 require_once 'includes/db.php';
 // Optionally get user level from session
 $user_level = null;
+$user_id = isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 'guest';
 if (isset($_SESSION['user_id'])) {
     $stmt = $conn->prepare("SELECT proficiency_level FROM user_profiles WHERE user_id = ?");
     $stmt->execute([$_SESSION['user_id']]);
@@ -15,12 +16,14 @@ if (isset($_SESSION['user_id'])) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="user-id" content="<?php echo htmlspecialchars($user_id); ?>">
     <title>Pronunciation Practice</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/custom.css">
-    <link rel="stylesheet" href="css/chatbot.css">
-    <style>
+    <link rel="stylesheet" href="css/floating-chatbot.css">
+    <link rel="stylesheet" href="css/search-autocomplete.css">
+<style>
         .practice-target { font-size: 1.5rem; font-weight: 600; margin: 1rem 0; background: var(--light); color: var(--primary); border: 2px solid var(--primary); border-radius: var(--radius-md); }
         .transcript-box { font-size: 1.2rem; min-height: 2.5rem; background: var(--gray-100); border-radius: var(--radius-md); padding: 0.5rem 1rem; border: 1.5px solid var(--accent); color: var(--dark); }
         .feedback-box { min-height: 2rem; background: var(--gray-100); border-left: 5px solid var(--primary); color: var(--dark); }
@@ -33,7 +36,7 @@ if (isset($_SESSION['user_id'])) {
         .form-label { color: var(--primary); }
     </style>
 </head>
-<body>
+<body data-user-id="<?php echo htmlspecialchars($user_id); ?>">
 <?php include 'includes/nav.php'; ?>
 <div class="container py-4">
     <div class="row justify-content-center">
@@ -110,5 +113,16 @@ window.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+    <!-- Include Floating Chatbot -->
+    <?php include 'includes/floating-chatbot.php'; ?>
+    
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Marked.js for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Floating Chatbot JS -->
+    <script src="js/floating-chatbot.js"></script>
 </body>
 </html>

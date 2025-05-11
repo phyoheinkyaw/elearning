@@ -61,6 +61,10 @@ $levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="css/custom.css" rel="stylesheet">
+    <!-- Floating Chatbot CSS -->
+    <link href="css/floating-chatbot.css" rel="stylesheet">
+    <!-- Search Autocomplete CSS -->
+    <link href="css/search-autocomplete.css" rel="stylesheet">
 </head>
 
 <body>
@@ -79,12 +83,13 @@ $levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
         <div class="container">
             <form action="courses.php" method="GET" class="row g-3">
                 <div class="col-md-6">
-                    <div class="input-group">
+                    <div class="input-group search-input-container">
                         <span class="input-group-text bg-white border-end-0">
                             <i class="fas fa-search text-primary"></i>
                         </span>
                         <input type="text" class="form-control border-start-0" name="search" 
-                               placeholder="Search courses..." value="<?php echo htmlspecialchars($search); ?>">
+                               placeholder="Search courses..." value="<?php echo htmlspecialchars($search); ?>"
+                               data-autosuggest="true" autocomplete="off">
                     </div>
                 </div>
                 <div class="col-md-4">
@@ -153,8 +158,20 @@ $levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
     <?php include 'includes/footer.php'; ?>
 
+    <!-- Include Floating Chatbot -->
+    <?php include 'includes/floating-chatbot.php'; ?>
+    
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Marked.js for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
     <!-- Bootstrap JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Floating Chatbot JS -->
+    <script src="js/floating-chatbot.js"></script>
 </body>
 
 </html>

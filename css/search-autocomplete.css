@@ -1,0 +1,94 @@
+/* Search Autocomplete CSS */
+
+.search-suggestions {
+    position: absolute;
+    width: 100%;
+    max-height: 400px;
+    overflow-y: auto;
+    background-color: white;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    display: none;
+    top: calc(100% + 5px); /* Position below the input with 5px gap */
+    left: 0;
+    padding: 5px 0;
+}
+
+.suggestion-item {
+    padding: 10px 15px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover, .suggestion-item.active {
+    background-color: #f8f9fa;
+}
+
+.suggestion-title {
+    font-weight: 500;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.suggestion-subtitle {
+    font-size: 0.85rem;
+    color: #6c757d;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.suggestion-badge {
+    float: right;
+    font-size: 0.7rem;
+    margin-left: 8px;
+}
+
+/* Make search input container position relative */
+.search-input-container {
+    position: relative;
+}
+
+/* Navbar-specific styling */
+.navbar .search-input-container .search-suggestions {
+    width: 300px; /* Fixed width for navbar suggestions */
+    right: 0;
+    left: auto; /* Override the left position */
+}
+
+/* For smaller screens */
+@media (max-width: 576px) {
+    .search-suggestions {
+        max-height: 300px;
+    }
+    
+    .suggestion-item {
+        padding: 8px 12px;
+    }
+    
+    .suggestion-title {
+        font-size: 0.9rem;
+    }
+    
+    .suggestion-subtitle {
+        font-size: 0.75rem;
+    }
+    
+    /* Make navbar search suggestions full width on mobile */
+    .navbar .search-input-container .search-suggestions {
+        width: 100%;
+        right: auto;
+        left: 0;
+        position: fixed;
+        top: 60px; /* Adjust based on your navbar height */
+    }
+} 

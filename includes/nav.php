@@ -3,13 +3,39 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Define base URL - the root of the application
+$base_url = '/el/';
+
 // Define the path prefix based on current URL
 $current_url = $_SERVER['REQUEST_URI'];
-$PATH_PREFIX = strpos($current_url, 'games/wordscapes') !== false ? '../../' : '';
+$document_root = $_SERVER['DOCUMENT_ROOT'];
+$script_filename = $_SERVER['SCRIPT_FILENAME'];
+
+// Get the relative path of the current script from document root
+$script_path = str_replace($document_root, '', $script_filename);
+$script_path = str_replace('\\', '/', $script_path); // Normalize slashes
+
+// Calculate the directory depth
+$depth = substr_count($script_path, '/') - 1;
+
+// Set path prefix based on directory depth
+$PATH_PREFIX = '';
+if ($depth > 0) {
+    $PATH_PREFIX = str_repeat('../', $depth);
+}
+
+// Option to use absolute URLs with base_url instead of relative paths
+$use_absolute_urls = true;
+
+// Helper function to generate URLs
+function site_url($path = '') {
+    global $base_url, $PATH_PREFIX, $use_absolute_urls;
+    return $use_absolute_urls ? $base_url . ltrim($path, '/') : $PATH_PREFIX . $path;
+}
 ?>
 <nav class="navbar navbar-expand-lg sticky-top navbar-dark">
     <div class="container">
-        <a class="navbar-brand" href="<?= $PATH_PREFIX ?>index.php">
+        <a class="navbar-brand" href="<?= site_url('index.php') ?>">
             <i class="fas fa-graduation-cap me-2"></i>
             ELearning
         </a>
@@ -19,28 +45,29 @@ $PATH_PREFIX = strpos($current_url, 'games/wordscapes') !== false ? '../../' : '
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav me-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $PATH_PREFIX ?>index.php">Home</a>
+                    <a class="nav-link" href="<?= site_url('index.php') ?>">Home</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $PATH_PREFIX ?>courses.php">Course Catalog</a>
+                    <a class="nav-link" href="<?= site_url('courses.php') ?>">Course Catalog</a>
                 </li>
                 <?php if (isset($_SESSION['user_id'])): ?>
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $PATH_PREFIX ?>chatbot.php">Chatbot</a>
+                    <a class="nav-link" href="<?= site_url('chatbot.php') ?>">Chatbot</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $PATH_PREFIX ?>pronunciation.php">Pronunciation Test</a>
+                    <a class="nav-link" href="<?= site_url('pronunciation.php') ?>">Pronunciation Test</a>
                 </li>
                 <?php endif; ?>
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $PATH_PREFIX ?>resources.php">Resources</a>
+                    <a class="nav-link" href="<?= site_url('resources.php') ?>">Resources</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $PATH_PREFIX ?>dictionary.php">Dictionary</a>
+                    <a class="nav-link" href="<?= site_url('dictionary.php') ?>">Dictionary</a>
                 </li>
             </ul>
-            <form class="d-flex me-3" id="global-search-form" action="<?= $PATH_PREFIX ?>search.php" method="get" role="search">
-                <input class="form-control me-2" type="search" name="q" placeholder="Search all..." aria-label="Search" required style="min-width:170px;">
+            <form class="d-flex me-3 search-input-container" id="global-search-form" action="<?= site_url('search.php') ?>" method="get" role="search">
+                <input class="form-control me-2" type="search" name="q" placeholder="Search all..." aria-label="Search" 
+                       required style="min-width:170px;" data-autosuggest="true" autocomplete="off">
                 <button class="btn btn-outline-primary" type="submit"><i class="fas fa-search"></i></button>
             </form>
             <ul class="navbar-nav">
@@ -83,13 +110,13 @@ $PATH_PREFIX = strpos($current_url, 'games/wordscapes') !== false ? '../../' : '
                         </div>
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="<?= $PATH_PREFIX ?>profile.php">
+                        <li><a class="dropdown-item" href="<?= site_url('profile.php') ?>">
                                 <i class="fas fa-user me-2"></i>Profile
                             </a></li>
-                        <li><a class="dropdown-item" href="<?= $PATH_PREFIX ?>my-courses.php">
+                        <li><a class="dropdown-item" href="<?= site_url('my-courses.php') ?>">
                                 <i class="fas fa-book me-2"></i>My Courses
                             </a></li>
-                        <li><a class="dropdown-item" href="<?= $PATH_PREFIX ?>level-test.php">
+                        <li><a class="dropdown-item" href="<?= site_url('level-test.php') ?>">
                                 <i class="fas fa-signal me-2"></i>Level Test
                                 <?php if ($profile && !empty($profile['last_test_date'])): ?>
                                 <small class="text-muted d-block">
@@ -98,30 +125,30 @@ $PATH_PREFIX = strpos($current_url, 'games/wordscapes') !== false ? '../../' : '
                                 <?php endif; ?>
                             </a></li>
                         <?php if ($_SESSION['role'] === 'admin'): ?>
-                        <li><a class="dropdown-item" href="<?= $PATH_PREFIX ?>admin/">
+                        <li><a class="dropdown-item" href="<?= site_url('admin/') ?>">
                                 <i class="fas fa-lock me-2"></i>Admin Panel
                             </a></li>
                         <?php endif; ?>
                         <li>
                             <hr class="dropdown-divider">
                         </li>
-                        <li><a class="dropdown-item" href="<?= $PATH_PREFIX ?>quizzes.php">
+                        <li><a class="dropdown-item" href="<?= site_url('quizzes.php') ?>">
                                 <i class="fas fa-question-circle me-2"></i>Quizzes
                         </a></li>
-                        <li><a class="dropdown-item" href="<?= $PATH_PREFIX ?>games/wordscapes/">
+                        <li><a class="dropdown-item" href="<?= site_url('games/') ?>">
                                 <i class="fas fa-gamepad me-2"></i>Games
                         </a></li>
-                        <li><a class="dropdown-item" href="<?= $PATH_PREFIX ?>logout.php">
+                        <li><a class="dropdown-item" href="<?= site_url('logout.php') ?>">
                                 <i class="fas fa-sign-out-alt me-2"></i>Logout
                             </a></li>
                     </ul>
                 </li>
                 <?php else: ?>
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $PATH_PREFIX ?>login.php">Login</a>
+                    <a class="nav-link" href="<?= site_url('login.php') ?>">Login</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="<?= $PATH_PREFIX ?>register.php">Register</a>
+                    <a class="nav-link" href="<?= site_url('register.php') ?>">Register</a>
                 </li>
                 <?php endif; ?>
             </ul>

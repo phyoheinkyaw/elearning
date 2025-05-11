@@ -109,6 +109,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['progress'])) {
         min-height: calc(100vh - 300px);
     }
     </style>
+    <!-- Floating Chatbot CSS -->
+    <link href="css/floating-chatbot.css" rel="stylesheet">
+    <!-- Search Autocomplete CSS -->
+    <link href="css/search-autocomplete.css" rel="stylesheet">
 </head>
 
 <body class="pb-5">
@@ -298,6 +302,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['progress'])) {
     //     }
     // });
     </script>
+    <!-- Include Floating Chatbot -->
+    <?php include 'includes/floating-chatbot.php'; ?>
+    
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Marked.js for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Floating Chatbot JS -->
+    <script src="js/floating-chatbot.js"></script>
 </body>
 
 </html>

@@ -175,14 +175,14 @@ CREATE TABLE IF NOT EXISTS voice_recognition_attempts (
 );
 
 -- Chatbot conversations table
-CREATE TABLE IF NOT EXISTS chatbot_conversations (
-    conversation_id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT,
-    user_query TEXT NOT NULL,
-    bot_response TEXT NOT NULL,
-    conversation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
-);
+-- CREATE TABLE IF NOT EXISTS chatbot_conversations (
+--     conversation_id INT PRIMARY KEY AUTO_INCREMENT,
+--     user_id INT,
+--     user_query TEXT NOT NULL,
+--     bot_response TEXT NOT NULL,
+--     conversation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+--     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+-- );
 
 -- Chatbot messages table
 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -218,17 +218,33 @@ CREATE TABLE IF NOT EXISTS wordscapes_levels (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- User game preferences table
+CREATE TABLE IF NOT EXISTS user_game_preferences (
+    preference_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    wordscapes_current_level INT DEFAULT 1,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    UNIQUE KEY unique_user_preferences (user_id)
+);
+
 -- User progress for Wordscapes
 CREATE TABLE IF NOT EXISTS wordscapes_user_progress (
     progress_id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
     level_id INT NOT NULL,
     found_words JSON,
+    score INT NOT NULL DEFAULT 0,
+    hints_used INT NOT NULL DEFAULT 0,
     last_played TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (level_id) REFERENCES wordscapes_levels(level_id),
     UNIQUE KEY unique_progress (user_id, level_id)
 );
+
+-- Create indexes for better performance
+CREATE INDEX idx_wordscapes_progress_user ON wordscapes_user_progress (user_id);
+CREATE INDEX idx_wordscapes_progress_level ON wordscapes_user_progress (level_id);
 
 -- Valid words for each level
 CREATE TABLE IF NOT EXISTS wordscapes_words (

@@ -114,13 +114,20 @@ if ($q !== '') {
         }
     });
     </script>
+    <!-- Floating Chatbot CSS -->
+    <link href="css/floating-chatbot.css" rel="stylesheet">
+    <!-- Search Autocomplete CSS -->
+    <link href="css/search-autocomplete.css" rel="stylesheet">
 </head>
 <body>
 <?php include 'includes/nav.php'; ?>
 <div class="container py-4">
     <form id="searchForm" class="mb-4" method="get" action="search.php">
-        <div class="input-group input-group-lg">
-            <input type="text" name="q" id="searchInput" class="form-control" placeholder="Search courses, quizzes, resources, dictionary..." value="<?= htmlspecialchars($q) ?>" required>
+        <div class="input-group input-group-lg search-input-container">
+            <input type="text" name="q" id="searchInput" class="form-control" 
+                   placeholder="Search courses, quizzes, resources, dictionary..." 
+                   value="<?= htmlspecialchars($q) ?>" required
+                   data-autosuggest="true" autocomplete="off">
             <button class="btn btn-primary" type="submit"><i class="fas fa-search me-2"></i>Search</button>
         </div>
     </form>
@@ -186,6 +193,17 @@ if ($q !== '') {
     <?php endif; ?>
 </div>
 <?php include 'includes/footer.php'; ?>
+    <!-- Include Floating Chatbot -->
+    <?php include 'includes/floating-chatbot.php'; ?>
+    
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <!-- Marked.js for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Floating Chatbot JS -->
+    <script src="js/floating-chatbot.js"></script>
 </body>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.min.js"></script>
 </html>
