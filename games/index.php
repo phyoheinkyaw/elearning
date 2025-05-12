@@ -58,51 +58,74 @@ function safeGetGameStats($folder_name, $metadata, $conn) {
     }
 }
 
+// Helper function to format numbers with k/M/B suffixes
+function formatNumber($number) {
+    if ($number < 1000) {
+        return $number;
+    } else if ($number < 1000000) {
+        return number_format($number / 1000, $number % 1000 < 100 ? 0 : 1) . 'k';
+    } else if ($number < 1000000000) {
+        return number_format($number / 1000000, $number % 1000000 < 100000 ? 0 : 1) . 'M';
+    } else {
+        return number_format($number / 1000000000, $number % 1000000000 < 100000000 ? 0 : 1) . 'B';
+    }
+}
+
 // Get current directory
 $games_dir = __DIR__;
 
 // Scan directory for game folders
 $game_folders = array_filter(glob($games_dir . '/*'), 'is_dir');
 
-// Game metadata (title, description, icon)
-$game_metadata = [
-    'wordscapes' => [
-        'title' => 'Wordscapes',
-        'description' => 'Find all possible words from a set of letters in this word puzzle game.',
-        'icon' => 'fas fa-font',
-        'background' => 'linear-gradient(135deg, #3f51b5, #7986cb)',
-        'stats' => [
-            ['icon' => 'fas fa-layer-group', 'label' => 'Levels', 'value' => function() use ($conn) {
-                try {
-                    $stmt = $conn->prepare("SELECT COUNT(*) FROM wordscapes_levels");
-                    $stmt->execute();
-                    return $stmt->fetchColumn() ?: '10+';
-                } catch (Exception $e) {
-                    return '10+';
-                }
-            }],
-            ['icon' => 'fas fa-users', 'label' => 'Players', 'value' => function() use ($conn) {
-                try {
-                    $stmt = $conn->prepare("SELECT COUNT(DISTINCT user_id) FROM wordscapes_user_progress");
-                    $stmt->execute();
-                    return $stmt->fetchColumn() ?: '0';
-                } catch (Exception $e) {
-                    return '0';
-                }
-            }],
-            ['icon' => 'fas fa-star', 'label' => 'Top Score', 'value' => function() use ($conn) {
-                try {
-                    $stmt = $conn->prepare("SELECT MAX(score) FROM wordscapes_user_progress");
-                    $stmt->execute();
-                    return $stmt->fetchColumn() ?: '0';
-                } catch (Exception $e) {
-                    return '0';
-                }
-            }]
-        ]
-    ],
-    // Add metadata for future games here
-];
+// Get game metadata from database
+$game_metadata = [];
+try {
+    $stmt = $conn->prepare("SELECT * FROM games_info WHERE is_active = 1");
+    $stmt->execute();
+    $games_from_db = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($games_from_db as $game) {
+        $game_metadata[$game['game_folder']] = [
+            'title' => $game['title'],
+            'description' => $game['description'],
+            'icon' => $game['icon'],
+            'background' => $game['background'],
+            'stats' => [
+                ['icon' => 'fas fa-layer-group', 'label' => 'Levels', 'value' => function() use ($conn, $game) {
+                    try {
+                        $stmt = $conn->prepare("SELECT COUNT(*) FROM wordscapes_levels WHERE game_folder = ?");
+                        $stmt->execute([$game['game_folder']]);
+                        return $stmt->fetchColumn() ?: '10+';
+                    } catch (Exception $e) {
+                        return $game['difficulty'] ?? 'Medium';
+                    }
+                }],
+                ['icon' => 'fas fa-users', 'label' => 'Players', 'value' => function() use ($conn, $game) {
+                    try {
+                        $stmt = $conn->prepare("SELECT COUNT(DISTINCT user_id) FROM wordscapes_user_progress");
+                        $stmt->execute();
+                        return $stmt->fetchColumn() ?: '0';
+                    } catch (Exception $e) {
+                        return '0';
+                    }
+                }],
+                ['icon' => 'fas fa-star', 'label' => 'Top Score', 'value' => function() use ($conn, $game) {
+                    try {
+                        $stmt = $conn->prepare("SELECT MAX(total_score) FROM wordscapes_user_progress");
+                        $stmt->execute();
+                        $score = $stmt->fetchColumn() ?: '0';
+                        return formatNumber($score);
+                    } catch (Exception $e) {
+                        return '0';
+                    }
+                }]
+            ]
+        ];
+    }
+} catch (Exception $e) {
+    // Log the error but continue with empty game_metadata
+    error_log("Error fetching games: " . $e->getMessage());
+}
 
 // Page title
 $page_title = 'Games Library';
@@ -274,20 +297,16 @@ $page_title = 'Games Library';
                         // Skip hidden folders
                         if (substr($folder_name, 0, 1) === '.') continue;
                         
+                        // Skip folders that don't have entries in game_metadata (inactive or not in DB)
+                        if (!isset($game_metadata[$folder_name])) continue;
+                        
                         $found_games = true;
                         
-                        // Get metadata or set defaults
-                        $title = isset($game_metadata[$folder_name]['title']) ? 
-                            $game_metadata[$folder_name]['title'] : ucfirst($folder_name);
-                            
-                        $description = isset($game_metadata[$folder_name]['description']) ? 
-                            $game_metadata[$folder_name]['description'] : 'An interactive educational game.';
-                            
-                        $icon = isset($game_metadata[$folder_name]['icon']) ? 
-                            $game_metadata[$folder_name]['icon'] : 'fas fa-gamepad';
-                            
-                        $background = isset($game_metadata[$folder_name]['background']) ? 
-                            $game_metadata[$folder_name]['background'] : 'linear-gradient(135deg, #4caf50, #8bc34a)';
+                        // Get metadata from the database (we know it exists now)
+                        $title = $game_metadata[$folder_name]['title'];
+                        $description = $game_metadata[$folder_name]['description'];
+                        $icon = $game_metadata[$folder_name]['icon'];
+                        $background = $game_metadata[$folder_name]['background'];
                     ?>
                     <div class="col-md-4 mb-4">
                         <div class="game-card">

@@ -207,53 +207,78 @@ CREATE TABLE IF NOT EXISTS resource_library (
     FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE SET NULL
 );
 
+-- Game information table to store metadata for each game
+CREATE TABLE IF NOT EXISTS games_info (
+    game_id INT PRIMARY KEY AUTO_INCREMENT,
+    game_folder VARCHAR(50) NOT NULL UNIQUE COMMENT 'Folder name of the game',
+    title VARCHAR(100) NOT NULL,
+    description TEXT,
+    icon VARCHAR(50) DEFAULT 'fas fa-gamepad' COMMENT 'Font Awesome icon class',
+    background VARCHAR(100) DEFAULT 'linear-gradient(135deg, #4caf50, #8bc34a)' COMMENT 'CSS background value',
+    difficulty VARCHAR(20) DEFAULT 'Medium',
+    duration VARCHAR(20) DEFAULT '5-10 min',
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Game help table to store help content for each game
+CREATE TABLE IF NOT EXISTS games_help (
+    help_id INT PRIMARY KEY AUTO_INCREMENT,
+    game_id INT NOT NULL,
+    section_title VARCHAR(100) NOT NULL COMMENT 'E.g., How to Play, Controls, etc.',
+    section_content TEXT NOT NULL,
+    display_order INT DEFAULT 1 COMMENT 'Order in which sections should be displayed',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES games_info(game_id) ON DELETE CASCADE
+);
+
 -- Wordscapes game tables
 
 -- Game levels table
 CREATE TABLE IF NOT EXISTS wordscapes_levels (
     level_id INT PRIMARY KEY AUTO_INCREMENT,
+    game_id INT NOT NULL,
     difficulty TINYINT NOT NULL,
     given_letters VARCHAR(20) NOT NULL,
     level_number INT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (game_id) REFERENCES games_info(game_id) ON DELETE CASCADE
 );
 
--- User game preferences table
-CREATE TABLE IF NOT EXISTS user_game_preferences (
-    preference_id INT PRIMARY KEY AUTO_INCREMENT,
-    user_id INT NOT NULL,
-    wordscapes_current_level INT DEFAULT 1,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id),
-    UNIQUE KEY unique_user_preferences (user_id)
-);
-
--- User progress for Wordscapes
+-- User progress for Wordscapes (one row per user)
 CREATE TABLE IF NOT EXISTS wordscapes_user_progress (
     progress_id INT PRIMARY KEY AUTO_INCREMENT,
     user_id INT NOT NULL,
-    level_id INT NOT NULL,
-    found_words JSON,
-    score INT NOT NULL DEFAULT 0,
-    hints_used INT NOT NULL DEFAULT 0,
+    current_level_id INT NOT NULL,  -- Current level the user is on
+    found_words JSON,               -- Words found in current level only
+    total_score INT NOT NULL DEFAULT 0, -- Accumulated score across all levels
+    current_level_score INT NOT NULL DEFAULT 0, -- Score for current level only
+    hints_used INT NOT NULL DEFAULT 0,   -- Total hints used
+    hints_received INT NOT NULL DEFAULT 0, -- Total hints received/earned
+    completed_levels JSON,          -- Array of completed level IDs
+    revealed_hints JSON, -- Stores which hint letters have been revealed
     last_played TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id),
-    FOREIGN KEY (level_id) REFERENCES wordscapes_levels(level_id),
-    UNIQUE KEY unique_progress (user_id, level_id)
+    FOREIGN KEY (current_level_id) REFERENCES wordscapes_levels(level_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_progress (user_id)
 );
 
 -- Create indexes for better performance
 CREATE INDEX idx_wordscapes_progress_user ON wordscapes_user_progress (user_id);
-CREATE INDEX idx_wordscapes_progress_level ON wordscapes_user_progress (level_id);
+CREATE INDEX idx_wordscapes_progress_level ON wordscapes_user_progress (current_level_id);
 
 -- Valid words for each level
 CREATE TABLE IF NOT EXISTS wordscapes_words (
     word_id INT PRIMARY KEY AUTO_INCREMENT,
     level_id INT NOT NULL,
     word VARCHAR(50) NOT NULL,
-    FOREIGN KEY (level_id) REFERENCES wordscapes_levels(level_id),
+    FOREIGN KEY (level_id) REFERENCES wordscapes_levels(level_id) ON DELETE CASCADE,
     UNIQUE KEY unique_word (level_id, word)
 );
+
+
 
 -- Insert sample data
 
@@ -630,11 +655,15 @@ INSERT INTO quiz_questions (quiz_id, question_text, question_type, options, corr
 (9, 'Correct the sentence: "Good luck! Break a leg!"', 2, '{"sentence": "Good luck! Break a leg!", "correct": "Good luck! Break a leg!"}', 'Good luck! Break a leg!'),
 (9, 'Which idiom means "good luck"?', 0, '{"A": "break a leg", "B": "piece of cake", "C": "raining cats and dogs", "D": "hit the nail on the head"}', 'A');
 
+-- Insert initial game information for Wordscapes
+INSERT INTO games_info (game_folder, title, description, icon, background, difficulty, duration) VALUES
+('wordscapes', 'Wordscapes', 'Find all possible words from a set of letters in this word puzzle game.', 'fas fa-font', 'linear-gradient(135deg, #3f51b5, #7986cb)', 'Medium', '5-10 min');
+
 -- Sample data for Wordscapes game
-INSERT INTO wordscapes_levels (difficulty, given_letters, level_number) VALUES
-(1, 'PEACHES', 1),
-(2, 'BREADS', 2),
-(3, 'GARDEN', 3);
+INSERT INTO wordscapes_levels (game_id, difficulty, given_letters, level_number) VALUES
+(1, 1, 'PEACHES', 1),
+(1, 2, 'BREADS', 2),
+(1, 3, 'GARDEN', 3);
 
 INSERT INTO wordscapes_words (level_id, word) VALUES
 -- Level 1 words
@@ -652,3 +681,26 @@ INSERT INTO wordscapes_words (level_id, word) VALUES
 (3, 'GARD'),
 (3, 'GARDE'),
 (3, 'GARDEN');
+
+-- Insert help content for Wordscapes
+INSERT INTO games_help (game_id, section_title, section_content, display_order) VALUES
+(1, 'How to Play', 'Wordscapes is a word puzzle game where you create words from a set of letters to fill in crossword-style answer boxes.', 1),
+(1, 'Game Rules', '<ul>
+    <li>Form words using the provided letters</li>
+    <li>Each correct word fills in the corresponding answer boxes</li>
+    <li>You earn 1 point for each letter in a word</li>
+    <li>Complete levels to progress through the game</li>
+    <li>You receive 1 hint for every 30 points you earn</li>
+    <li>Use hints to reveal letters in difficult words</li>
+</ul>', 2),
+(1, 'Controls', '<ul>
+    <li><strong>Click letters</strong> to form words</li>
+    <li><strong>Submit Word</strong> to check your answer</li>
+    <li><strong>Reset Word</strong> to clear your current word</li>
+    <li><strong>Shuffle Letters</strong> to rearrange the letters</li>
+    <li><strong>Click on an answer box</strong> to use a hint (if available)</li>
+    <li>You can also use your keyboard to type letters and Enter to submit</li>
+</ul>', 3),
+(1, 'Game Progress', 'Your progress is automatically saved. You can only access the level you\'re currently on. Complete a level to unlock the next one.', 4);
+
+-- Insert sample data

@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         switch ($_POST['action']) {
             case 'add_level':
                 // Get all required fields
-                $required_fields = ['difficulty', 'level_number', 'given_letters', 'words'];
+                $required_fields = ['game_id', 'difficulty', 'level_number', 'given_letters', 'words'];
                 $missing_fields = array_filter($required_fields, function($field) {
                     return !isset($_POST[$field]);
                 });
@@ -35,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 // Get and validate all fields
+                $game_id = (int)$_POST['game_id'];
                 $difficulty = (int)$_POST['difficulty'];
                 $level_number = (int)$_POST['level_number'];
                 $given_letters = trim($_POST['given_letters']);
@@ -49,16 +50,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception("At least two unique words are required.");
                 }
 
-                // Check if level number already exists
-                $stmt = $conn->prepare("SELECT level_id FROM wordscapes_levels WHERE level_number = ?");
-                $stmt->execute([$level_number]);
+                // Check if game exists
+                $stmt = $conn->prepare("SELECT game_id FROM games_info WHERE game_id = ?");
+                $stmt->execute([$game_id]);
+                if (!$stmt->fetch()) {
+                    throw new Exception("Invalid game selected.");
+                }
+
+                // Check if level number already exists for this game
+                $stmt = $conn->prepare("SELECT level_id FROM wordscapes_levels WHERE level_number = ? AND game_id = ?");
+                $stmt->execute([$level_number, $game_id]);
                 if ($stmt->fetch()) {
-                    throw new Exception("Level number already exists. Please choose a different number.");
+                    throw new Exception("Level number already exists for this game. Please choose a different number.");
                 }
 
                 // Insert level
-                $stmt = $conn->prepare("INSERT INTO wordscapes_levels (difficulty, level_number, given_letters) VALUES (?, ?, ?)");
-                $stmt->execute([$difficulty, $level_number, $given_letters]);
+                $stmt = $conn->prepare("INSERT INTO wordscapes_levels (game_id, difficulty, level_number, given_letters) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$game_id, $difficulty, $level_number, $given_letters]);
                 $level_id = $conn->lastInsertId();
                 
                 // Insert words
@@ -72,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             case 'edit_level':
                 // Get all required fields
-                $required_fields = ['level_id', 'difficulty', 'level_number', 'given_letters', 'words'];
+                $required_fields = ['level_id', 'game_id', 'difficulty', 'level_number', 'given_letters', 'words'];
                 $missing_fields = array_filter($required_fields, function($field) {
                     return !isset($_POST[$field]);
                 });
@@ -83,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // Get and validate all fields
                 $level_id = (int)$_POST['level_id'];
+                $game_id = (int)$_POST['game_id'];
                 $difficulty = (int)$_POST['difficulty'];
                 $level_number = (int)$_POST['level_number'];
                 $given_letters = trim($_POST['given_letters']);
@@ -97,9 +106,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception("At least two unique words are required.");
                 }
 
+                // Check if game exists
+                $stmt = $conn->prepare("SELECT game_id FROM games_info WHERE game_id = ?");
+                $stmt->execute([$game_id]);
+                if (!$stmt->fetch()) {
+                    throw new Exception("Invalid game selected.");
+                }
+
+                // Check if level number already exists for another level in the same game
+                $stmt = $conn->prepare("SELECT level_id FROM wordscapes_levels WHERE level_number = ? AND game_id = ? AND level_id != ?");
+                $stmt->execute([$level_number, $game_id, $level_id]);
+                if ($stmt->fetch()) {
+                    throw new Exception("Level number already exists for this game. Please choose a different number.");
+                }
+
                 // Update level
-                $stmt = $conn->prepare("UPDATE wordscapes_levels SET difficulty = ?, level_number = ?, given_letters = ? WHERE level_id = ?");
-                $stmt->execute([$difficulty, $level_number, $given_letters, $level_id]);
+                $stmt = $conn->prepare("UPDATE wordscapes_levels SET game_id = ?, difficulty = ?, level_number = ?, given_letters = ? WHERE level_id = ?");
+                $stmt->execute([$game_id, $difficulty, $level_number, $given_letters, $level_id]);
 
                 // Update words
                 // First delete existing words
@@ -152,11 +175,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get all levels with words and highest level number
 try {
-    $stmt = $conn->query("SELECT l.*, GROUP_CONCAT(w.word ORDER BY w.word SEPARATOR ', ') as words 
+    $stmt = $conn->query("SELECT l.*, g.title as game_title, GROUP_CONCAT(w.word ORDER BY w.word SEPARATOR ', ') as words 
                         FROM wordscapes_levels l 
+                        JOIN games_info g ON l.game_id = g.game_id
                         LEFT JOIN wordscapes_words w ON l.level_id = w.level_id 
                         GROUP BY l.level_id 
-                        ORDER BY l.level_number");
+                        ORDER BY g.title, l.level_number");
     $levels = $stmt->fetchAll();
 } catch (PDOException $e) {
     $_SESSION['error_message'] = "Error fetching levels: " . $e->getMessage();
@@ -169,6 +193,14 @@ $stmt = $conn->prepare("SELECT MAX(level_number) as max_level FROM wordscapes_le
 $stmt->execute();
 $row = $stmt->fetch();
 $next_level = $row['max_level'] ? $row['max_level'] + 1 : 1;
+
+// Get all games for select dropdown
+try {
+    $stmt = $conn->query("SELECT game_id, title, game_folder FROM games_info ORDER BY title");
+    $games = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $games = [];
+}
 
 // Helper function to convert difficulty to text
 function getDifficultyText($difficulty) {
@@ -243,9 +275,11 @@ function getDifficultyText($difficulty) {
                             <table class="table table-hover" id="levelsTable">
                                 <thead>
                                     <tr>
-                                        <th>Level Number</th>
+                                        <th>ID</th>
+                                        <th>Game</th>
+                                        <th>Level</th>
                                         <th>Difficulty</th>
-                                        <th>Available Letters</th>
+                                        <th>Letters</th>
                                         <th>Words</th>
                                         <th>Actions</th>
                                     </tr>
@@ -253,30 +287,30 @@ function getDifficultyText($difficulty) {
                                 <tbody>
                                     <?php foreach ($levels as $level): ?>
                                         <tr>
-                                            <td><?php echo htmlspecialchars($level['level_number']); ?></td>
+                                            <td><?php echo $level['level_id']; ?></td>
+                                            <td><?php echo htmlspecialchars($level['game_title']); ?></td>
+                                            <td><?php echo $level['level_number']; ?></td>
                                             <td><?php echo getDifficultyText($level['difficulty']); ?></td>
                                             <td><?php echo htmlspecialchars($level['given_letters']); ?></td>
+                                            <td><?php echo htmlspecialchars($level['words'] ?? ''); ?></td>
                                             <td>
-                                                <div class="word-list">
-                                                    <?php 
-                                                    $words = explode(',', $level['words']);
-                                                    foreach ($words as $word): 
-                                                        $trimmed_word = trim($word);
-                                                        if (!empty($trimmed_word)) {
-                                                            echo '<span class="badge bg-primary me-1">' . htmlspecialchars($trimmed_word) . '</span>';
-                                                        }
-                                                    endforeach; 
-                                                    ?>
-                                                </div>
-                                            </td>
-                                            <td>
-                                                <div class="btn-group">
-                                                    <button class="btn btn-sm btn-outline-primary edit-level" 
-                                                            data-level-id="<?php echo $level['level_id']; ?>">
+                                                <div class="btn-group btn-group-sm">
+                                                    <button type="button" class="btn btn-outline-primary edit-level-btn" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#editLevelModal"
+                                                        data-level-id="<?php echo $level['level_id']; ?>"
+                                                        data-game-id="<?php echo $level['game_id']; ?>"
+                                                        data-difficulty="<?php echo $level['difficulty']; ?>"
+                                                        data-level-number="<?php echo $level['level_number']; ?>"
+                                                        data-given-letters="<?php echo htmlspecialchars($level['given_letters']); ?>"
+                                                        data-words="<?php echo htmlspecialchars($level['words'] ?? ''); ?>">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
-                                                    <button type="button" class="btn btn-sm btn-outline-danger delete-level" 
-                                                            data-level-id="<?php echo $level['level_id']; ?>">
+                                                    <button type="button" class="btn btn-outline-danger delete-level-btn" 
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#deleteLevelModal"
+                                                        data-level-id="<?php echo $level['level_id']; ?>"
+                                                        data-level-number="<?php echo $level['level_number']; ?>">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </div>
@@ -303,12 +337,20 @@ function getDifficultyText($difficulty) {
                 <div class="modal-body">
                     <form method="POST" action="">
                         <input type="hidden" name="action" value="add_level">
-                        <input type="hidden" name="level_number" id="level_number_hidden" value="<?php echo $next_level; ?>">
-                        <div class="mb-3">
-                            <label for="level_number_display" class="form-label">Level Number</label>
-                            <input type="number" class="form-control" id="level_number_display" 
-                                   value="<?php echo $next_level; ?>" readonly>
-                            <small class="form-text text-muted">This will be automatically generated based on previous levels</small>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="game_id" class="form-label">Game <span class="text-danger">*</span></label>
+                                <select class="form-select" id="game_id" name="game_id" required>
+                                    <option value="">Select a game</option>
+                                    <?php foreach ($games as $game): ?>
+                                        <option value="<?php echo $game['game_id']; ?>"><?php echo htmlspecialchars($game['title']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="level_number" class="form-label">Level Number <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="level_number" name="level_number" value="<?php echo $next_level; ?>" required>
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label for="difficulty" class="form-label">Difficulty Level</label>
@@ -361,10 +403,25 @@ function getDifficultyText($difficulty) {
                 <div class="modal-body">
                     <form id="editLevelForm" method="POST" action="">
                         <input type="hidden" name="action" value="edit_level">
-                        <input type="hidden" name="level_id" id="editLevelId">
+                        <input type="hidden" name="level_id" id="edit_level_id">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="edit_game_id" class="form-label">Game <span class="text-danger">*</span></label>
+                                <select class="form-select" id="edit_game_id" name="game_id" required>
+                                    <option value="">Select a game</option>
+                                    <?php foreach ($games as $game): ?>
+                                        <option value="<?php echo $game['game_id']; ?>"><?php echo htmlspecialchars($game['title']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="edit_level_number" class="form-label">Level Number <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="edit_level_number" name="level_number" required>
+                            </div>
+                        </div>
                         <div class="mb-3">
-                            <label for="editDifficulty" class="form-label">Difficulty Level</label>
-                            <select class="form-select" id="editDifficulty" name="difficulty" required>
+                            <label for="edit_difficulty" class="form-label">Difficulty Level</label>
+                            <select class="form-select" id="edit_difficulty" name="difficulty" required>
                                 <option value="1">Easy</option>
                                 <option value="2">Medium</option>
                                 <option value="3">Hard</option>
@@ -372,17 +429,12 @@ function getDifficultyText($difficulty) {
                             <small class="form-text text-muted">Select the difficulty level for this level</small>
                         </div>
                         <div class="mb-3">
-                            <label for="editLevelNumber" class="form-label">Level Number</label>
-                            <input type="number" class="form-control" id="editLevelNumber" name="level_number" required>
-                            <small class="form-text text-muted">Enter the level number</small>
-                        </div>
-                        <div class="mb-3">
-                            <label for="editGivenLetters" class="form-label">Available Letters</label>
-                            <input type="text" class="form-control" id="editGivenLetters" name="given_letters" required>
+                            <label for="edit_given_letters" class="form-label">Available Letters</label>
+                            <input type="text" class="form-control" id="edit_given_letters" name="given_letters" required>
                             <small class="form-text text-muted">Enter letters without spaces (e.g., ABCDE)</small>
                         </div>
                         <div class="mb-3">
-                            <label for="editWords" class="form-label">Words</label>
+                            <label for="edit_words" class="form-label">Words</label>
                             <div id="editWordInputs">
                                 <!-- Word inputs will be populated here -->
                             </div>
@@ -530,82 +582,29 @@ function getDifficultyText($difficulty) {
 
         function initializeEditFunctionality() {
             // Add click event to edit buttons
-            document.querySelectorAll('.edit-level').forEach(button => {
-                button.addEventListener('click', function() {
-                    console.log('Edit level button clicked');
-                    const levelId = this.dataset.levelId;
-                    const levelNumber = this.dataset.levelNumber;
-                    
-                    // Fetch level data
-                    fetch('api/wordscapes.php?action=get_level&level_id=' + levelId)
-                        .then(response => {
-                            console.log('API response status:', response.status);
-                            return response.json();
-                        })
-                        .then(data => {
-                            console.log('Received level data:', data);
-                            document.getElementById('editLevelId').value = data.level_id;
-                            document.getElementById('editDifficulty').value = data.difficulty;
-                            document.getElementById('editLevelNumber').value = data.level_number;
-                            document.getElementById('editGivenLetters').value = data.given_letters;
-                            
-                            // Clear and populate word inputs
-                            const editWordInputs = document.getElementById('editWordInputs');
-                            editWordInputs.innerHTML = '';
-                            
-                            console.log('Adding words to edit form:', data.words);
-                            data.words.forEach(word => {
-                                const inputGroup = document.createElement('div');
-                                inputGroup.className = 'input-group mb-2';
-                                
-                                const input = document.createElement('input');
-                                input.type = 'text';
-                                input.className = 'form-control';
-                                input.name = 'words[]';
-                                input.value = word;
-                                input.required = true;
-                                
-                                const removeBtn = document.createElement('button');
-                                removeBtn.className = 'btn btn-outline-danger remove-word';
-                                removeBtn.type = 'button';
-                                removeBtn.innerHTML = '<i class="fas fa-times"></i>';
-                                removeBtn.addEventListener('click', function(e) {
-                                    const inputGroup = e.target.closest('.input-group');
-                                    if (inputGroup) {
-                                        const wordInputs = document.getElementById('editWordInputs');
-                                        const inputGroups = wordInputs.querySelectorAll('.input-group');
-                                        
-                                        // Allow removing second word when there are exactly 2 words
-                                        if (inputGroups.length === 2 && inputGroup === inputGroups[1]) {
-                                            console.log('Removing second word when there are exactly 2 words');
-                                            inputGroup.remove();
-                                            return;
-                                        }
-                                        
-                                        // For more than 2 words, ensure at least 2 words remain
-                                        if (inputGroups.length > 2) {
-                                            console.log('Removing word input group');
-                                            inputGroup.remove();
-                                        }
-                                    }
-                                });
-                                
-                                inputGroup.appendChild(input);
-                                inputGroup.appendChild(removeBtn);
-                                editWordInputs.appendChild(inputGroup);
-                            });
-                            
-                            // Initialize event listeners for edit form
-                            initializeInputEventListeners();
-                            
-                            // Show edit modal
-                            new bootstrap.Modal(document.getElementById('editLevelModal')).show();
-                        })
-                        .catch(error => {
-                            console.error('Error fetching level data:', error);
-                            alert('Error loading level data. Please refresh the page and try again.');
-                        });
+            $('.edit-level-btn').click(function() {
+                $('#edit_level_id').val($(this).data('level-id'));
+                $('#edit_game_id').val($(this).data('game-id'));
+                $('#edit_difficulty').val($(this).data('difficulty'));
+                $('#edit_level_number').val($(this).data('level-number'));
+                $('#edit_given_letters').val($(this).data('given-letters'));
+                
+                // Split words by comma and trim
+                let wordsString = $(this).data('words');
+                let words = wordsString ? wordsString.split(',').map(word => word.trim()) : [];
+                
+                // Clear existing word fields
+                $('.edit-word-container').html('');
+                
+                // Add each word
+                words.forEach(function(word, index) {
+                    addWordField('edit', word);
                 });
+                
+                // Add empty field if no words
+                if (words.length === 0) {
+                    addWordField('edit', '');
+                }
             });
 
             // Edit word button click handler
@@ -692,38 +691,36 @@ function getDifficultyText($difficulty) {
 
         function initializeDeleteFunctionality() {
             // Add click event to delete buttons
-            document.querySelectorAll('.delete-level').forEach(button => {
-                button.addEventListener('click', function() {
-                    const levelId = this.dataset.levelId;
-                    const levelNumber = this.dataset.levelNumber;
+            $('.delete-level-btn').click(function() {
+                const levelId = $(this).data('level-id');
+                const levelNumber = $(this).data('level-number');
+                
+                // Show confirmation modal
+                const modal = new bootstrap.Modal(document.getElementById('deleteConfirmationModal'));
+                modal.show();
+                
+                // Set up confirmation button
+                const confirmDeleteBtn = document.getElementById('confirmDelete');
+                confirmDeleteBtn.addEventListener('click', function() {
+                    // Submit delete form
+                    const deleteForm = document.createElement('form');
+                    deleteForm.method = 'POST';
+                    deleteForm.action = '';
                     
-                    // Show confirmation modal
-                    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmationModal'));
-                    modal.show();
+                    const actionInput = document.createElement('input');
+                    actionInput.type = 'hidden';
+                    actionInput.name = 'action';
+                    actionInput.value = 'delete_level';
+                    deleteForm.appendChild(actionInput);
                     
-                    // Set up confirmation button
-                    const confirmDeleteBtn = document.getElementById('confirmDelete');
-                    confirmDeleteBtn.addEventListener('click', function() {
-                        // Submit delete form
-                        const deleteForm = document.createElement('form');
-                        deleteForm.method = 'POST';
-                        deleteForm.action = '';
-                        
-                        const actionInput = document.createElement('input');
-                        actionInput.type = 'hidden';
-                        actionInput.name = 'action';
-                        actionInput.value = 'delete_level';
-                        deleteForm.appendChild(actionInput);
-                        
-                        const levelIdInput = document.createElement('input');
-                        levelIdInput.type = 'hidden';
-                        levelIdInput.name = 'level_id';
-                        levelIdInput.value = levelId;
-                        deleteForm.appendChild(levelIdInput);
-                        
-                        document.body.appendChild(deleteForm);
-                        deleteForm.submit();
-                    });
+                    const levelIdInput = document.createElement('input');
+                    levelIdInput.type = 'hidden';
+                    levelIdInput.name = 'level_id';
+                    levelIdInput.value = levelId;
+                    deleteForm.appendChild(levelIdInput);
+                    
+                    document.body.appendChild(deleteForm);
+                    deleteForm.submit();
                 });
             });
         }

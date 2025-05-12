@@ -97,4 +97,4 @@
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
 <!-- Search Autocomplete JS -->
-<script src="<?= $PATH_PREFIX ?? '' ?>js/search-autocomplete.js"></script>
+<script src="<?= site_url('js/search-autocomplete.js') ?>"></script>

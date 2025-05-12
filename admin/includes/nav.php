@@ -60,8 +60,14 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </a>
         </li>
         <li class="sidebar-item">
-            <a class="sidebar-link <?php echo $current_page === 'wordscapes.php' ? 'active' : ''; ?>" href="wordscapes.php">
+            <a class="sidebar-link <?php echo $current_page === 'games.php' ? 'active' : ''; ?>" href="games.php">
                 <i class="fas fa-gamepad"></i>
+                <span>Games</span>
+            </a>
+        </li>
+        <li class="sidebar-item">
+            <a class="sidebar-link <?php echo $current_page === 'wordscapes.php' ? 'active' : ''; ?>" href="wordscapes.php">
+                <i class="fas fa-font"></i>
                 <span>Wordscapes</span>
             </a>
         </li>

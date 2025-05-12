@@ -1,11 +1,30 @@
 .game-container {
-    max-width: 800px;
+    max-width: 1000px;
     margin: 0 auto;
     padding: 30px;
     font-family: 'Arial', sans-serif;
     background-color: #f8f9fa;
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+/* Main layout for game with sidebar */
+.wordscapes-layout {
+    display: flex;
+    gap: 20px;
+    position: relative;
+}
+
+.game-main {
+    flex: 1;
+}
+
+.game-sidebar {
+    width: 250px;
+    position: sticky;
+    top: 20px;
+    align-self: flex-start;
 }
 
 .game-container h1 {
@@ -593,148 +612,200 @@
     }
 }
 
+/* Score display styling */
 .score-display {
     display: flex;
     justify-content: center;
-    margin-bottom: 20px;
     background: white;
+    border-radius: 15px;
     padding: 15px;
-    border-radius: 12px;
+    margin-bottom: 20px;
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
 .score-item {
+    text-align: center;
+    margin: 0 10px;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    margin: 0 15px;
-    font-size: 20px;
-    font-weight: bold;
-    color: #333;
+    position: relative;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+    padding: 10px 15px;
+    min-width: 80px;
 }
 
 .score-item i {
-    margin-right: 10px;
-    font-size: 24px;
+    font-size: 20px;
+    margin-bottom: 5px;
 }
 
 .score-item .fa-star {
     color: #ffc107;
 }
 
-.score-item .fa-lightbulb {
+.score-item .fa-star-half-alt {
     color: #ff9800;
 }
 
-.score-value, .hints-value {
-    margin-right: 5px;
+.score-item .fa-lightbulb {
+    color: #4caf50;
+}
+
+.score-value, .level-score-value, .hints-value {
+    font-size: 22px;
+    font-weight: bold;
 }
 
 .score-label, .hints-label {
-    font-size: 14px;
-    opacity: 0.8;
-    font-weight: normal;
+    font-size: 12px;
+    opacity: 0.7;
+    text-transform: uppercase;
 }
 
-/* Leaderboard styles */
-.leaderboard-section {
-    margin-top: 40px;
-    padding: 25px;
-    background-color: white;
+/* Persistent sidebar leaderboard styling */
+.persistent-leaderboard {
+    background: white;
     border-radius: 15px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
 }
 
-.leaderboard-section h3 {
+.persistent-leaderboard h3 {
     text-align: center;
-    margin-bottom: 25px;
+    margin-bottom: 15px;
     color: #3f51b5;
+    font-size: 18px;
     font-weight: 600;
-    position: relative;
     padding-bottom: 10px;
+    border-bottom: 2px solid #e0e0e0;
+    position: relative;
 }
 
-.leaderboard-section h3::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 50px;
-    height: 3px;
-    background: linear-gradient(to right, #3f51b5, #7986cb);
-}
-
-.leaderboard-table {
-    width: 100%;
-    border-collapse: collapse;
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-
-.leaderboard-table thead {
-    background: linear-gradient(145deg, #3f51b5, #3949a9);
-    color: white;
-}
-
-.leaderboard-table th {
-    padding: 12px 15px;
-    text-align: left;
-    font-weight: 600;
-}
-
-.leaderboard-table tbody tr {
-    border-bottom: 1px solid #e0e0e0;
-}
-
-.leaderboard-table tbody tr:nth-child(even) {
-    background-color: #f8f9fa;
-}
-
-.leaderboard-table tbody tr:last-child {
-    border-bottom: none;
-}
-
-.leaderboard-table td {
-    padding: 12px 15px;
-}
-
-.leaderboard-table .rank {
-    font-weight: bold;
-    width: 60px;
-}
-
-.leaderboard-table .rank-1 {
+.persistent-leaderboard h3:before {
+    content: '\f091'; /* Trophy icon */
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    margin-right: 8px;
     color: #ffc107;
 }
 
-.leaderboard-table .rank-2 {
+.persistent-leaderboard .leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.persistent-leaderboard .leaderboard-table th {
+    text-align: left;
+    padding: 8px 5px;
+    border-bottom: 1px solid #e0e0e0;
+    color: #757575;
+    font-weight: 600;
+}
+
+.persistent-leaderboard .leaderboard-table td {
+    padding: 8px 5px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.persistent-leaderboard .leaderboard-table tr:last-child td {
+    border-bottom: none;
+}
+
+.persistent-leaderboard .leaderboard-table .rank {
+    width: 15%;
+    text-align: center;
+    font-weight: bold;
+}
+
+.persistent-leaderboard .leaderboard-table .rank-1:before {
+    content: '\f521'; /* Crown icon */
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    margin-right: 4px;
+    color: #ffc107;
+}
+
+.persistent-leaderboard .leaderboard-table .rank-2:before {
+    content: '\f559'; /* Medal icon */
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    margin-right: 4px;
     color: #9e9e9e;
 }
 
-.leaderboard-table .rank-3 {
+.persistent-leaderboard .leaderboard-table .rank-3:before {
+    content: '\f559'; /* Medal icon */
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    margin-right: 4px;
     color: #cd7f32;
 }
 
-.leaderboard-table .score {
+.persistent-leaderboard .leaderboard-table .score {
     font-weight: bold;
     color: #3f51b5;
 }
 
-.my-score {
-    background-color: #e8f5e9 !important;
+.persistent-leaderboard .my-score {
+    background-color: #e8f5e9;
 }
 
-/* Responsive leaderboard */
-@media (max-width: 480px) {
-    .leaderboard-table th,
-    .leaderboard-table td {
-        padding: 10px 8px;
-        font-size: 14px;
+.persistent-leaderboard .my-score td {
+    font-weight: bold;
+}
+
+/* Level info section */
+.level-info {
+    background: white;
+    border-radius: 15px;
+    padding: 15px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    text-align: center;
+}
+
+.level-info h3 {
+    margin-bottom: 10px;
+    color: #3f51b5;
+    font-size: 16px;
+}
+
+.level-info p {
+    margin: 5px 0;
+    font-size: 14px;
+}
+
+.level-progress {
+    height: 8px;
+    background: #e0e0e0;
+    border-radius: 4px;
+    margin: 10px 0;
+    overflow: hidden;
+}
+
+.level-progress-bar {
+    height: 100%;
+    background: linear-gradient(to right, #4caf50, #8bc34a);
+    transition: width 0.3s ease;
+}
+
+/* Responsive layout adjustments */
+@media (max-width: 1024px) {
+    .wordscapes-layout {
+        flex-direction: column;
     }
     
-    .leaderboard-section {
-        padding: 15px;
+    .game-sidebar {
+        width: 100%;
+        position: static;
+    }
+    
+    .persistent-leaderboard {
+        margin-top: 20px;
     }
 }
 
@@ -868,4 +939,84 @@
     background: linear-gradient(to right, #f57c00, #e65100);
     transform: translateY(-2px);
     box-shadow: 0 6px 10px rgba(0,0,0,0.15);
+}
+
+.modal-body h5 {
+    color: #3f51b5;
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.modal-body ul {
+    margin-bottom: 20px;
+}
+
+.modal-body li {
+    margin-bottom: 5px;
+}
+
+#helpButton {
+    position: relative;
+    border-radius: 50px;
+    transition: all 0.3s ease;
+    padding: 8px 16px;
+    font-weight: 500;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+#helpButton:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    background-color: #3f51b5;
+    color: white;
+    border-color: #3f51b5;
+}
+
+#helpButton i {
+    margin-right: 5px;
+    font-size: 1.1rem;
+}
+
+#gameHelpModal .modal-content {
+    border-radius: 15px;
+    border: none;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+#gameHelpModal .modal-header {
+    background-color: #3f51b5;
+    color: white;
+    border-bottom: none;
+    border-top-left-radius: 15px;
+    border-top-right-radius: 15px;
+    padding: 15px 20px;
+}
+
+#gameHelpModal .modal-title {
+    font-weight: 600;
+}
+
+#gameHelpModal .modal-body {
+    padding: 20px 25px;
+}
+
+#gameHelpModal .modal-footer {
+    border-top: none;
+    padding: 15px 20px 20px;
+}
+
+#gameHelpModal .btn-secondary {
+    background-color: #3f51b5;
+    border: none;
+    border-radius: 50px;
+    padding: 8px 25px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+#gameHelpModal .btn-secondary:hover {
+    background-color: #303f9f;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }

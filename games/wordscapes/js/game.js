@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
+    // Get the help button
+    const helpButton = document.getElementById('helpButton');
+
     const level_id = parseInt(gameContainer.dataset.levelId);
     const total_levels = parseInt(gameContainer.dataset.totalLevels);
     // Get the current level number from the game container or default to level_id
@@ -13,6 +16,34 @@ document.addEventListener('DOMContentLoaded', () => {
         parseInt(gameContainer.dataset.levelNumber) : level_id;
     
     console.log('Starting level:', level_id, 'Level number:', current_level_number, 'Total levels:', total_levels);
+
+    // Help button functionality for tooltip only (modal handled in index.php)
+    if (helpButton) {
+        // Add tooltip behavior
+        let tooltipTimeout;
+        
+        // Show a tooltip for new users on first page load
+        if (localStorage.getItem('wordscapes_help_shown') !== 'true') {
+            tooltipTimeout = setTimeout(() => {
+                helpButton.setAttribute('title', 'Click for game instructions!');
+                // Use bootstrap tooltip if available
+                if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+                    const tooltip = new bootstrap.Tooltip(helpButton, {
+                        trigger: 'manual'
+                    });
+                    tooltip.show();
+                    
+                    // Hide tooltip after 5 seconds
+                    setTimeout(() => {
+                        tooltip.hide();
+                    }, 5000);
+                }
+            }, 3000);
+            
+            // Mark that we've shown the help tooltip
+            localStorage.setItem('wordscapes_help_shown', 'true');
+        }
+    }
 
     // Game state
     let gameState = {
@@ -25,6 +56,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load initial game state
     loadGameProgress();
+    
+    // Load leaderboard data immediately
+    loadLeaderboard();
 
     // Log hints from PHP
     if (window.gameHints) {
@@ -61,7 +95,12 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="score-item">
             <i class="fas fa-star"></i>
             <span class="score-value">0</span>
-            <span class="score-label">points</span>
+            <span class="score-label">total</span>
+        </div>
+        <div class="score-item">
+            <i class="fas fa-star-half-alt"></i>
+            <span class="level-score-value">0</span>
+            <span class="score-label">this level</span>
         </div>
         <div class="score-item">
             <i class="fas fa-lightbulb"></i>
@@ -130,11 +169,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.success) {
                     console.log('Loaded game progress:', data);
                     gameState.score = data.score || 0;
+                    gameState.currentLevelScore = data.current_level_score || 0;
                     gameState.hintsUsed = data.hints_used || 0;
+                    gameState.hintsReceived = data.hints_received || 0;
                     gameState.foundWords = data.found_words || [];
+                    gameState.completedLevels = data.completed_levels || [];
+                    gameState.revealedHints = data.revealed_hints || {};
                     
-                    // Calculate available hints (1 hint per 10 points)
-                    gameState.hintsAvailable = Math.floor(gameState.score / 10) - gameState.hintsUsed;
+                    // Use available_hints if provided, otherwise calculate
+                    gameState.hintsAvailable = data.available_hints !== undefined 
+                        ? data.available_hints 
+                        : (gameState.hintsReceived - gameState.hintsUsed);
+                    
                     if (gameState.hintsAvailable < 0) gameState.hintsAvailable = 0;
                     
                     // Update score display
@@ -144,11 +190,45 @@ document.addEventListener('DOMContentLoaded', () => {
                     gameState.foundWords.forEach(word => {
                         updateAnswerBoxes(word);
                     });
+                    
+                    // Apply revealed hints from database
+                    applyRevealedHints();
                 }
             })
             .catch(error => {
                 console.error('Error loading game progress:', error);
             });
+    }
+    
+    // Function to apply revealed hints from the database
+    function applyRevealedHints() {
+        if (!gameState.revealedHints || Object.keys(gameState.revealedHints).length === 0) {
+            return;
+        }
+        
+        console.log('Applying revealed hints:', gameState.revealedHints);
+        
+        // Go through each answer group
+        document.querySelectorAll('.answer-group').forEach(group => {
+            const wordElem = group.querySelector('.answer-word');
+            if (!wordElem) return;
+            
+            const word = wordElem.dataset.word.toLowerCase();
+            
+            // Check if this word has revealed hints
+            if (gameState.revealedHints[word]) {
+                const positions = gameState.revealedHints[word];
+                const boxes = group.querySelectorAll('.answer-box');
+                
+                // Apply each revealed hint
+                positions.forEach(position => {
+                    if (position >= 0 && position < boxes.length) {
+                        boxes[position].textContent = word[position].toUpperCase();
+                        boxes[position].classList.add('success');
+                    }
+                });
+            }
+        });
     }
 
     // Letter click handler
@@ -171,10 +251,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Function to update score display
     function updateScoreDisplay() {
         const scoreValueEl = scoreDisplay.querySelector('.score-value');
+        const levelScoreValueEl = scoreDisplay.querySelector('.level-score-value');
         const hintsValueEl = scoreDisplay.querySelector('.hints-value');
         
         if (scoreValueEl) {
             scoreValueEl.textContent = gameState.score;
+        }
+        if (levelScoreValueEl) {
+            levelScoreValueEl.textContent = gameState.currentLevelScore;
         }
         if (hintsValueEl) {
             hintsValueEl.textContent = gameState.hintsAvailable;
@@ -203,6 +287,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     box.textContent = wordLetters[index];
                 });
                 
+                // Add green check mark icon
+                if (!box.querySelector('.fa-check-circle')) {
+                    const checkIcon = document.createElement('i');
+                    checkIcon.className = 'fas fa-check-circle text-success ms-2';
+                    box.appendChild(checkIcon);
+                }
+                
+                // Explicitly set display style to block to ensure it's visible
                 box.style.display = 'block';
                 
                 // Reset the fill boxes
@@ -435,13 +527,21 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
+        // Find a letter position that hasn't been revealed yet
+        const revealPosition = findUnrevealedPosition(answerGroup, word);
+        
+        if (revealPosition === -1) {
+            console.log('No more letters to reveal in this word');
+            return;
+        }
+        
         // Use a hint via AJAX
         fetch('ajax/game_actions.php', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: `action=use_hint&level_id=${level_id}`
+            body: `action=use_hint&level_id=${level_id}&word=${encodeURIComponent(word)}&position=${revealPosition}`
         })
         .then(response => response.json())
         .then(data => {
@@ -451,8 +551,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 gameState.hintsAvailable--;
                 updateScoreDisplay();
                 
-                // Reveal a random letter in the word
-                revealRandomLetterInWord(answerGroup, word);
+                // Store the revealed hints in the game state
+                if (data.revealed_hints) {
+                    gameState.revealedHints = data.revealed_hints;
+                }
+                
+                // Reveal the letter in the word
+                revealLetterInWord(answerGroup, word, revealPosition);
             }
         })
         .catch(error => {
@@ -460,19 +565,33 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Function to reveal a random letter in a word
-    function revealRandomLetterInWord(answerGroup, word) {
-        const boxes = answerGroup.querySelectorAll('.answer-box:not(.success)');
-        if (boxes.length === 0) return;
+    // Function to find a position in the word that hasn't been revealed yet
+    function findUnrevealedPosition(answerGroup, word) {
+        const boxes = Array.from(answerGroup.querySelectorAll('.answer-box'));
         
-        // Choose a random box
-        const randomIndex = Math.floor(Math.random() * boxes.length);
-        const randomBox = boxes[randomIndex];
-        const boxIndex = Array.from(answerGroup.querySelectorAll('.answer-box')).indexOf(randomBox);
+        // Find all positions that aren't already revealed
+        const unrevealedPositions = boxes
+            .map((box, index) => ({ index, revealed: box.classList.contains('success') }))
+            .filter(item => !item.revealed)
+            .map(item => item.index);
         
-        // Reveal the letter
-        randomBox.textContent = word[boxIndex].toUpperCase();
-        randomBox.classList.add('success');
+        if (unrevealedPositions.length === 0) {
+            return -1;
+        }
+        
+        // Choose a random unrevealed position
+        const randomIndex = Math.floor(Math.random() * unrevealedPositions.length);
+        return unrevealedPositions[randomIndex];
+    }
+    
+    // Function to reveal a specific letter in a word
+    function revealLetterInWord(answerGroup, word, position) {
+        const boxes = answerGroup.querySelectorAll('.answer-box');
+        if (position < 0 || position >= boxes.length) return;
+        
+        // Reveal the specific letter
+        boxes[position].textContent = word[position].toUpperCase();
+        boxes[position].classList.add('success');
         
         // Play sound
         playSound('success');
@@ -565,19 +684,27 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 // Update game state
                 gameState.score = data.score;
+                gameState.currentLevelScore = data.current_level_score || 0;
                 gameState.foundWords = data.found_words;
                 gameState.levelCompleted = data.level_completed;
                 
-                // Calculate available hints (1 hint per 10 points)
-                gameState.hintsAvailable = Math.floor(gameState.score / 10) - gameState.hintsUsed;
+                // Update hintsAvailable if provided, otherwise calculate
+                if (data.hints_available !== undefined) {
+                    gameState.hintsAvailable = data.hints_available;
+                } else if (data.hints_used !== undefined && data.hints_received !== undefined) {
+                    gameState.hintsUsed = data.hints_used;
+                    gameState.hintsReceived = data.hints_received;
+                    gameState.hintsAvailable = gameState.hintsReceived - gameState.hintsUsed;
+                }
+                
                 if (gameState.hintsAvailable < 0) gameState.hintsAvailable = 0;
                 
                 // Update UI
                 updateScoreDisplay();
                 updateAnswerBoxes(word);
                 
-                // Update leaderboard
-                loadLeaderboard();
+                // Update leaderboard and level info
+                loadLeaderboard(); // This also calls updateLevelInfo
                 
                 // Play success sound
                 playSound('success');
@@ -628,17 +755,58 @@ document.addEventListener('DOMContentLoaded', () => {
     shuffleBtn.addEventListener('click', () => {
         console.log('Shuffling letters');
         
-        // Get all letters
-        const letters = Array.from(availableLetters).map(el => el.textContent);
+        // Get mapping of used letters to fill boxes
+        const fillBoxToLetterMap = new Map();
+        const usedLetterIndices = new Map();
         
-        // Shuffle
-        const shuffled = shuffle([...letters]);
-        
-        // Update UI
-        availableLetters.forEach((el, i) => {
-            el.textContent = shuffled[i];
-            el.dataset.letter = shuffled[i];
+        // Map used letters to their fill box positions
+        fillBoxes.forEach((box, index) => {
+            if (box.textContent) {
+                const letter = box.textContent.toUpperCase();
+                fillBoxToLetterMap.set(index, letter);
+                
+                // Find which available letter element corresponds to this letter
+                for (let i = 0; i < availableLetters.length; i++) {
+                    if (availableLetters[i].textContent === letter && 
+                        availableLetters[i].classList.contains('used')) {
+                        usedLetterIndices.set(letter, i);
+                        break;
+                    }
+                }
+            }
         });
+        
+        // Collect all letters (both used and unused)
+        const allLetters = Array.from(availableLetters).map(el => el.textContent);
+        
+        // Shuffle all letters
+        const shuffledLetters = shuffle([...allLetters]);
+        
+        // Update UI for all letter elements
+        availableLetters.forEach((el, i) => {
+            el.textContent = shuffledLetters[i];
+            el.dataset.letter = shuffledLetters[i];
+            
+            // Reset the used status for all letters
+            el.classList.remove('used');
+            el.style.opacity = '1';
+        });
+        
+        // Reapply the used status to letters in the fill boxes
+        fillBoxToLetterMap.forEach((letter, boxIndex) => {
+            // Find the new position of this letter after shuffle
+            for (let i = 0; i < availableLetters.length; i++) {
+                if (availableLetters[i].textContent === letter && 
+                    !availableLetters[i].classList.contains('used')) {
+                    // Mark this letter as used
+                    availableLetters[i].classList.add('used');
+                    availableLetters[i].style.opacity = '0.5';
+                    break;
+                }
+            }
+        });
+        
+        console.log('All letters shuffled, maintained fill box mapping');
     });
 
     // Function to shuffle an array
@@ -655,7 +823,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Create sound effect only if needed
         let sound;
         if (type === 'success') {
-            sound = new Audio('data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA0xhdmY1Ny40MS4xMDAAAAAAAAAAAAAAA//tAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGluZm8AAAAPAAAAAwAABVgAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==');
+            sound = new Audio('data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA0xhdmY1Ny40MS4xMDAAAAAAAAAAAAAAA//tAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGluZm8AAAAPAAAAAwAABVgAVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==');
         } else {
             sound = new Audio('data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA0xhdmY1Ni40MC4xMDEAAAAAAAAAAAAAA//tAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFdpbmcAAAAPAAAADQAABNgAk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTk5OTyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyPf39/f39/f39/f39/f39/f39/f39/f39/f39/f39/cAAABQTEFNRTMuMTAwA8MAAAAAAAAAABSAJAVRFQAAgAAABNhSxL7PAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//sQRAAP8AAAf4AAAAgAAA/wAAABAAAB/gAAACAAAD/AAAAEJsQFAkAAAgQJAAAABAAEeqGYyKjGlHKwTEVAOE9zioOOFIQyEIZCEMh2IMFIDP5e/KvMYv/xh/if//8eH//D8IQlDun/8IQhCf//CEIT///+H4fh+H4fh+AwGAgDPAYDAYDgQBgMBAGAPZQnMAUBgIAwwFAoDAkCgL');
         }
@@ -675,31 +843,86 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(data => {
                 if (data.success) {
                     console.log('Loaded leaderboard:', data);
-                    renderLeaderboard(data.leaderboard);
+                    renderPersistentLeaderboard(data.leaderboard);
+                    
+                    // Also update level info whenever we load the leaderboard
+                    updateLevelInfo();
                 }
             })
             .catch(error => {
                 console.error('Error loading leaderboard:', error);
+                // Show empty state with error message
+                const leaderboardContainer = document.getElementById('persistentLeaderboard');
+                if (leaderboardContainer) {
+                    leaderboardContainer.innerHTML = '<p class="text-center text-danger">Error loading leaderboard</p>';
+                }
             });
     }
     
-    // Function to render leaderboard
-    function renderLeaderboard(leaderboard) {
-        // Create leaderboard section if it doesn't exist
-        let leaderboardSection = document.querySelector('.leaderboard-section');
+    // Function to update level information in sidebar
+    function updateLevelInfo() {
+        fetch(`ajax/game_actions.php?action=get_progress&level_id=${level_id}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update level completion percentage
+                    const levelProgressBar = document.querySelector('.level-progress-bar');
+                    const foundCount = document.querySelector('.found-count');
+                    const totalCount = document.querySelector('.total-count');
+                    const percentageDisplay = document.querySelector('.percentage-display');
+                    
+                    if (levelProgressBar && foundCount && totalCount && percentageDisplay) {
+                        const found = data.found_words ? data.found_words.length : 0;
+                        const total = validWords.length;
+                        const percentage = total > 0 ? Math.round((found / total) * 100) : 0;
+                        
+                        levelProgressBar.style.width = `${percentage}%`;
+                        foundCount.textContent = found;
+                        percentageDisplay.textContent = percentage;
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error updating level info:', error);
+            });
+    }
+    
+    // Set up auto-refresh for leaderboard and level info
+    let refreshInterval;
+    
+    function startAutoRefresh() {
+        // Clear any existing interval
+        if (refreshInterval) clearInterval(refreshInterval);
         
-        if (!leaderboardSection) {
-            leaderboardSection = document.createElement('div');
-            leaderboardSection.className = 'leaderboard-section';
-            leaderboardSection.innerHTML = '<h3>Leaderboard</h3>';
-            
-            // Append leaderboard section to game container
-            const answerSection = document.querySelector('.answer-section');
-            if (answerSection) {
-                gameContainer.insertBefore(leaderboardSection, answerSection.nextSibling);
-            } else {
-                gameContainer.appendChild(leaderboardSection);
-            }
+        // Set up new interval - refresh every 30 seconds
+        refreshInterval = setInterval(() => {
+            loadLeaderboard(); // This also calls updateLevelInfo
+        }, 30000); // 30 seconds
+    }
+    
+    // Start auto-refresh when page loads
+    startAutoRefresh();
+    
+    // Restart auto-refresh when visibility changes (user comes back to tab)
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            loadLeaderboard(); // Immediate refresh when returning to tab
+            startAutoRefresh(); // Restart interval
+        } else {
+            // Clear interval when tab is not visible to save resources
+            if (refreshInterval) clearInterval(refreshInterval);
+        }
+    });
+    
+    // Function to render the persistent leaderboard in the sidebar
+    function renderPersistentLeaderboard(leaderboard) {
+        const leaderboardContainer = document.getElementById('persistentLeaderboard');
+        if (!leaderboardContainer) return;
+        
+        // Handle empty or undefined leaderboard data
+        if (!leaderboard || Object.keys(leaderboard).length === 0) {
+            leaderboardContainer.innerHTML = '<p class="text-center">No leaderboard data available</p>';
+            return;
         }
         
         // Create leaderboard table
@@ -710,56 +933,64 @@ document.addEventListener('DOMContentLoaded', () => {
                         <th>Rank</th>
                         <th>Player</th>
                         <th>Score</th>
-                        <th>Hints</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${renderLeaderboardRows(leaderboard)}
+                    ${renderPersistentLeaderboardRows(leaderboard)}
                 </tbody>
             </table>
         `;
         
-        // Append or replace existing table
-        const existingTable = leaderboardSection.querySelector('.leaderboard-table');
-        if (existingTable) {
-            existingTable.outerHTML = tableHTML;
-        } else {
-            leaderboardSection.innerHTML += tableHTML;
-        }
+        // Update the container
+        leaderboardContainer.innerHTML = tableHTML;
     }
     
-    // Function to render leaderboard rows
-    function renderLeaderboardRows(leaderboard) {
+    // Function to render persistent leaderboard rows
+    function renderPersistentLeaderboardRows(leaderboard) {
         let rows = '';
         
+        // Check if there's no data available
+        if (leaderboard && leaderboard.no_data === true) {
+            return `<tr>
+                <td colspan="3" class="text-center py-3">
+                    <i class="fas fa-trophy text-muted mb-2" style="font-size: 24px;"></i>
+                    <p class="mb-0">Be the first to play and get on the leaderboard!</p>
+                </td>
+            </tr>`;
+        }
+        
         // Add top users
-        if (leaderboard.top_users && leaderboard.top_users.length > 0) {
-            leaderboard.top_users.forEach((user, index) => {
+        if (leaderboard && leaderboard.top_users && leaderboard.top_users.length > 0) {
+            const topUsers = leaderboard.top_users.slice(0, 5); // Limit to 5 for sidebar
+            topUsers.forEach((user, index) => {
                 const rank = index + 1;
-                const isCurrentUser = user.user_id == gameContainer.dataset.userId;
+                const isCurrentUser = gameContainer.dataset.userId && user.user_id == gameContainer.dataset.userId;
                 const rankClass = rank <= 3 ? `rank-${rank}` : '';
                 
                 rows += `
                     <tr${isCurrentUser ? ' class="my-score"' : ''}>
                         <td class="rank ${rankClass}">${rank}</td>
-                        <td>${user.username}${isCurrentUser ? ' (You)' : ''}</td>
-                        <td class="score">${user.score} points</td>
-                        <td>${user.hints_used}</td>
+                        <td>${user.display_name}${isCurrentUser ? ' (You)' : ''}</td>
+                        <td class="score">${user.score}</td>
                     </tr>
                 `;
             });
         } else {
-            rows += '<tr><td colspan="4" style="text-align:center;">No data available</td></tr>';
+            rows += `<tr>
+                <td colspan="3" class="text-center py-3">
+                    <i class="fas fa-users text-muted mb-2" style="font-size: 24px;"></i>
+                    <p class="mb-0">No players have scores yet</p>
+                </td>
+            </tr>`;
         }
         
-        // Add user's row if not in top 10
-        if (!leaderboard.user_in_top && leaderboard.user_data) {
+        // Add user's row if not in top 5 and we have user data
+        if (leaderboard && leaderboard.user_data && !leaderboard.user_in_top) {
             rows += `
                 <tr class="my-score" style="border-top: 2px dashed #3f51b5;">
                     <td class="rank">${leaderboard.user_data.rank}</td>
-                    <td>${leaderboard.user_data.username} (You)</td>
-                    <td class="score">${leaderboard.user_data.score} points</td>
-                    <td>${leaderboard.user_data.hints_used}</td>
+                    <td>${leaderboard.user_data.display_name} (You)</td>
+                    <td class="score">${leaderboard.user_data.score}</td>
                 </tr>
             `;
         }

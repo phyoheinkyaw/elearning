@@ -9,6 +9,13 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Prevent warnings and notices from breaking JSON output
+ini_set('display_errors', 0);
+error_reporting(E_ERROR);
+
+// Set JSON content type header early
+header('Content-Type: application/json');
+
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'User not logged in']);
@@ -68,7 +75,8 @@ switch ($action) {
                 'success' => true, 
                 'message' => 'Word found',
                 'word' => $word,
-                'score' => $gameData['score'],
+                'score' => $gameData['total_score'],
+                'current_level_score' => $gameData['current_level_score'],
                 'found_words' => $gameData['found_words'],
                 'level_completed' => $isCompleted
             ];
@@ -81,13 +89,25 @@ switch ($action) {
     case 'use_hint':
         // Record hint usage
         $result = $gameManager->useHint();
+        
+        // Get the word and position that this hint is for
+        $word = isset($_REQUEST['word']) ? trim($_REQUEST['word']) : '';
+        $position = isset($_REQUEST['position']) ? (int)$_REQUEST['position'] : -1;
+        
         if ($result) {
+            // Record which letter was revealed, if specified
+            if (!empty($word) && $position >= 0) {
+                $gameManager->recordRevealedHint($word, $position);
+            }
+            
             // Get hint information
             $gameData = $gameManager->getGameData();
             $response = [
                 'success' => true,
                 'message' => 'Hint used',
-                'hints_used' => $gameData['hints_used']
+                'hints_used' => $gameData['hints_used'],
+                'hints_available' => ($gameData['hints_received'] - $gameData['hints_used']),
+                'revealed_hints' => $gameManager->getRevealedHints()
             ];
         } else {
             $response = ['success' => false, 'message' => 'Could not use hint'];
@@ -100,17 +120,22 @@ switch ($action) {
         $level = $gameManager->getLevelData($level_id);
         
         if ($level) {
+            // Get level-specific info to ensure correct level is displayed
             $response = [
                 'success' => true,
                 'current_level' => $level_id,
-                'level_number' => $level['level_number'],
-                'difficulty' => $level['difficulty'],
-                'score' => $gameData['score'],
+                'level_number' => (int)$level['level_number'],
+                'difficulty' => (int)$level['difficulty'],
+                'score' => (int)$gameData['total_score'],
+                'current_level_score' => (int)$gameData['current_level_score'],
                 'found_words' => $gameData['found_words'],
-                'streak' => $gameData['streak'],
-                'hints_used' => $gameData['hints_used'],
-                'start_time' => $gameData['start_time'],
-                'last_played' => $gameData['last_played']
+                'hints_used' => (int)$gameData['hints_used'],
+                'hints_received' => (int)$gameData['hints_received'],
+                'available_hints' => (int)($gameData['hints_received'] - $gameData['hints_used']),
+                'completed_levels' => $gameData['completed_levels'],
+                'revealed_hints' => $gameData['revealed_hints'] ?? [],
+                'start_time' => isset($gameData['start_time']) ? (int)$gameData['start_time'] : time(),
+                'last_played' => isset($gameData['last_played']) ? (int)$gameData['last_played'] : time()
             ];
         } else {
             $response = ['success' => false, 'message' => 'Level not found'];
@@ -121,14 +146,11 @@ switch ($action) {
         // Get leaderboard data for current level
         $leaderboard = $gameManager->getLeaderboard();
         
-        if ($leaderboard) {
-            $response = [
-                'success' => true,
-                'leaderboard' => $leaderboard
-            ];
-        } else {
-            $response = ['success' => false, 'message' => 'Failed to get leaderboard'];
-        }
+        // Always return success and the leaderboard data, even if it's empty
+        $response = [
+            'success' => true,
+            'leaderboard' => $leaderboard
+        ];
         break;
         
     case 'reset_level':
@@ -142,6 +164,15 @@ switch ($action) {
         } else {
             $response = ['success' => false, 'message' => 'Failed to reset level'];
         }
+        break;
+        
+    case 'clear_session':
+        // Clear the session data for testing/debugging
+        $result = $gameManager->clearSessionData();
+        $response = [
+            'success' => true,
+            'message' => 'Session data cleared. Reload page to get fresh data from database.'
+        ];
         break;
         
     case 'get_levels':
@@ -164,16 +195,54 @@ switch ($action) {
     case 'save_current_level':
         // Save the current level in the session and database
         if ($level_id) {
-            $result = $gameManager->saveCurrentLevel($level_id);
-            if ($result) {
-                $response = [
-                    'success' => true,
-                    'message' => 'Current level saved'
-                ];
+            // First, check if the previous level is completed
+            // If moving to level N, check if level N-1 is completed
+            $previousLevel = $level_id - 1;
+            $canAdvance = true;
+            
+            if ($previousLevel > 0) {
+                // Get level ID for the previous level number
+                $stmt = $conn->prepare("SELECT level_id FROM wordscapes_levels WHERE level_number = ?");
+                $stmt->execute([$previousLevel]);
+                $prevLevelData = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($prevLevelData) {
+                    $prevLevelId = $prevLevelData['level_id'];
+                    $canAdvance = $gameManager->isLevelCompleted($prevLevelId);
+                }
+            }
+            
+            // Get the level data based on level_number
+            $stmt = $conn->prepare("SELECT level_id FROM wordscapes_levels WHERE level_number = ?");
+            $stmt->execute([$level_id]);
+            $levelData = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            // If level exists and user is allowed to advance, save it
+            if ($levelData && $canAdvance) {
+                $actualLevelId = $levelData['level_id'];
+                $result = $gameManager->saveCurrentLevel($actualLevelId);
+                
+                if ($result) {
+                    // Also update the session
+                    $_SESSION['wordscapes_current_level_number'] = $level_id;
+                    
+                    $response = [
+                        'success' => true,
+                        'message' => 'Current level saved',
+                        'level_id' => $actualLevelId,
+                        'level_number' => $level_id
+                    ];
+                } else {
+                    $response = [
+                        'success' => false,
+                        'message' => 'Failed to save current level'
+                    ];
+                }
             } else {
+                // If level doesn't exist or user can't advance, send error
                 $response = [
-                    'success' => false,
-                    'message' => 'Failed to save current level'
+                    'success' => false, 
+                    'message' => $canAdvance ? 'Invalid level ID' : 'Cannot advance until previous level is completed'
                 ];
             }
         } else {
@@ -189,5 +258,4 @@ switch ($action) {
 }
 
 // Return JSON response
-header('Content-Type: application/json');
 echo json_encode($response); 
