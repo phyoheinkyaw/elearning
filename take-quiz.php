@@ -437,7 +437,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_answer'])) {
     <!-- Bootstrap JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <!-- jQuery -->
-    <script src="/js/lib/jquery-3.7.1.min.js"></script>
+    <script src="js/lib/jquery-3.7.1.min.js"></script>
     <script>
     // Always define all global quiz JS functions
     window.goToQuestion = function(q) {
@@ -724,7 +724,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_answer'])) {
     <?php include 'includes/floating-chatbot.php'; ?>
     
     <!-- jQuery -->
-    <script src="/js/lib/jquery-3.6.0.min.js"></script>
+    <script src="js/lib/jquery-3.6.0.min.js"></script>
     
     <!-- Marked.js for Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

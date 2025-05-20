@@ -183,13 +183,13 @@ if ($game_id) {
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     <!-- DataTables CSS -->
-    <link href="/js/lib/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link href="../js/lib/dataTables.bootstrap5.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="../css/custom.css" rel="stylesheet">
     <!-- Admin CSS -->
     <link href="css/admin-style.css" rel="stylesheet">
     <!-- jQuery -->
-    <script src="/js/lib/jquery-3.7.1.min.js"></script>
+    <script src="../js/lib/jquery-3.7.1.min.js"></script>
     <!-- Summernote CSS/JS for rich text editing -->
     <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-bs4.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-bs4.min.js"></script>
@@ -442,8 +442,8 @@ if ($game_id) {
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <!-- DataTables -->
-    <script src="/js/lib/jquery.dataTables.min.js"></script>
-    <script src="/js/lib/dataTables.bootstrap5.min.js"></script>
+    <script src="../js/lib/jquery.dataTables.min.js"></script>
+    <script src="../js/lib/dataTables.bootstrap5.min.js"></script>
     <!-- Popper.js (required for Summernote) -->
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
     <!-- Bootstrap 4 (required for Summernote) -->

@@ -272,7 +272,7 @@ try {
     <?php include 'includes/floating-chatbot.php'; ?>
 
     <!-- jQuery -->
-    <script src="/js/lib/jquery-3.6.0.min.js"></script>
+    <script src="js/lib/jquery-3.6.0.min.js"></script>
     
     <!-- Marked.js for Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

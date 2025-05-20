@@ -176,12 +176,12 @@ $questions = $stmt->fetchAll();
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- jQuery -->
-    <script src="/js/lib/jquery-3.7.1.min.js"></script>
+    <script src="js/lib/jquery-3.7.1.min.js"></script>
     <!-- Include Floating Chatbot -->
     <?php include 'includes/floating-chatbot.php'; ?>
     
     <!-- jQuery -->
-    <script src="/js/lib/jquery-3.6.0.min.js"></script>
+    <script src="js/lib/jquery-3.6.0.min.js"></script>
     
     <!-- Marked.js for Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

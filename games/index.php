@@ -363,6 +363,6 @@ $page_title = 'Games Library';
     <?php include $includes_path . '/footer.php'; ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/js/lib/jquery-3.6.0.min.js"></script>
+    <script src="../js/lib/jquery-3.6.0.min.js"></script>
 </body>
 </html> 
