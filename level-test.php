@@ -293,7 +293,7 @@ $progress = ($current + 1) * 4; // 4% per question for 25 questions
     <?php include 'includes/floating-chatbot.php'; ?>
     
     <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="/js/lib/jquery-3.6.0.min.js"></script>
     
     <!-- Marked.js for Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

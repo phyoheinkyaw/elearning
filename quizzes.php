@@ -49,7 +49,7 @@ $quizzes = $stmt->fetchAll();
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
     <!-- DataTables CSS -->
-    <link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <link href="/js/lib/dataTables.bootstrap5.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="css/custom.css" rel="stylesheet">
     <!-- Floating Chatbot CSS -->
@@ -140,12 +140,12 @@ $quizzes = $stmt->fetchAll();
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="/js/lib/jquery-3.7.1.min.js"></script>
     <!-- Include Floating Chatbot -->
     <?php include 'includes/floating-chatbot.php'; ?>
     
     <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="/js/lib/jquery-3.6.0.min.js"></script>
     
     <!-- Marked.js for Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
