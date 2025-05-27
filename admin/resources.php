@@ -148,11 +148,7 @@ try {
                 <div class="card">
                     <div class="card-body">
                         <form method="GET" class="row g-3 mb-4">
-                            <div class="col-md-3">
-                                <input type="text" class="form-control" name="search" placeholder="Search resources..." 
-                                       value="<?php echo htmlspecialchars($search); ?>">
-                            </div>
-                            <div class="col-md-2">
+                            <div class="col-md-4">
                                 <select class="form-select" name="level">
                                     <option value="">All Levels</option>
                                     <option value="A1" <?php echo $level === 'A1' ? 'selected' : ''; ?>>A1</option>
@@ -163,7 +159,7 @@ try {
                                     <option value="C2" <?php echo $level === 'C2' ? 'selected' : ''; ?>>C2</option>
                                 </select>
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-md-4">
                                 <select class="form-select" name="type">
                                     <option value="">All Types</option>
                                     <option value="0" <?php echo $type === '0' ? 'selected' : ''; ?>>PDF</option>
@@ -182,9 +178,9 @@ try {
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <div class="col-md-2">
+                            <div class="col-md-1">
                                 <button type="submit" class="btn btn-primary w-100">
-                                    <i class="fas fa-search me-2"></i>Filter
+                                    <i class="fas fa-filter"></i>
                                 </button>
                             </div>
                         </form>

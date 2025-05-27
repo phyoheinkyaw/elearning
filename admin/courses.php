@@ -157,13 +157,7 @@ try {
                     <div class="card-body">
                         <!-- Filters -->
                         <form class="row g-3 mb-4" method="GET">
-                            <div class="col-md-4">
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-search"></i></span>
-                                    <input type="text" class="form-control" name="search" placeholder="Search courses..." value="<?php echo htmlspecialchars($search); ?>">
-                                </div>
-                            </div>
-                            <div class="col-md-3">
+                            <div class="col-md-6">
                                 <select class="form-select" name="instructor">
                                     <option value="">All Instructors</option>
                                     <?php foreach ($instructors as $instructor): ?>
@@ -174,7 +168,7 @@ try {
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-4">
                                 <select class="form-select" name="level">
                                     <option value="">All Levels</option>
                                     <?php foreach ($levels as $level): ?>

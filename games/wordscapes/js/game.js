@@ -330,8 +330,10 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('All words completed! Total words:', validWords.length);
             gameState.levelCompleted = true;
             
-            // Show notification
-            showCompletionNotification();
+            // Check if we need to show notification - only show if this is first time completing
+            if (!gameState.completedLevels.includes(level_id)) {
+                showCompletionNotification();
+            }
         }
     }
 
@@ -358,9 +360,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="modal-footer">
                     <button id="homeButton" class="modal-button home-btn">
                         <i class="fas fa-home"></i> Back to Home
-                    </button>
-                    <button id="playAgainButton" class="modal-button play-again-btn">
-                        <i class="fas fa-redo"></i> Play Again
                     </button>
                 </div>
             `;
@@ -395,7 +394,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add event listeners for buttons
         const nextLevelButton = document.getElementById('nextLevelButton');
         const homeButton = document.getElementById('homeButton');
-        const playAgainButton = document.getElementById('playAgainButton');
         
         if (nextLevelButton) {
             nextLevelButton.addEventListener('click', () => {
@@ -426,20 +424,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => {
                     modalOverlay.remove();
                     window.location.href = '../../index.php';
-                }, 300);
-            });
-        }
-        
-        if (playAgainButton) {
-            playAgainButton.addEventListener('click', () => {
-                // Close modal with animation
-                modalOverlay.classList.remove('visible');
-                modalContent.classList.remove('visible');
-                
-                // Wait for animation to complete
-                setTimeout(() => {
-                    modalOverlay.remove();
-                    window.location.href = 'index.php?level=1';
                 }, 300);
             });
         }

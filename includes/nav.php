@@ -129,6 +129,11 @@ function site_url($path = '') {
                                 <i class="fas fa-lock me-2"></i>Admin Panel
                             </a></li>
                         <?php endif; ?>
+                        <?php if ($_SESSION['role'] === 'instructor'): ?>
+                        <li><a class="dropdown-item" href="<?= site_url('instructor/') ?>">
+                                <i class="fas fa-chalkboard-teacher me-2"></i>Instructor Panel
+                            </a></li>
+                        <?php endif; ?>
                         <li>
                             <hr class="dropdown-divider">
                         </li>

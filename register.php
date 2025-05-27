@@ -24,6 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Passwords do not match';
     } elseif (strlen($password) < 8) {
         $error = 'Password must be at least 8 characters long';
+    } elseif (!preg_match('/[A-Z]/', $password)) {
+        $error = 'Password must contain at least one uppercase letter';
+    } elseif (!preg_match('/[a-z]/', $password)) {
+        $error = 'Password must contain at least one lowercase letter';
+    } elseif (!preg_match('/[0-9]/', $password)) {
+        $error = 'Password must contain at least one number';
+    } elseif (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        $error = 'Password must contain at least one special character';
     } else {
         try {
             // Check if email already exists
@@ -135,9 +143,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <i class="fas fa-lock"></i>
                                     </span>
                                     <input type="password" class="form-control" id="password" name="password" 
-                                           required minlength="8">
+                                           required minlength="8" 
+                                           pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\da-zA-Z]).{8,}$">
+                                    <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
                                 </div>
-                                <div class="form-text">Password must be at least 8 characters long.</div>
+                                <div class="mt-2">
+                                    <div class="password-strength-meter">
+                                        <div class="progress" style="height: 5px;">
+                                            <div class="progress-bar" role="progressbar" style="width: 0%;" id="passwordStrength"></div>
+                                        </div>
+                                    </div>
+                                    <div class="password-requirements mt-2">
+                                        <small class="d-block mb-1">Password must contain:</small>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            <span class="badge bg-secondary" id="length-check">8+ characters</span>
+                                            <span class="badge bg-secondary" id="uppercase-check">Uppercase</span>
+                                            <span class="badge bg-secondary" id="lowercase-check">Lowercase</span>
+                                            <span class="badge bg-secondary" id="number-check">Number</span>
+                                            <span class="badge bg-secondary" id="special-check">Special char</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="mb-4">
@@ -148,7 +176,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     </span>
                                     <input type="password" class="form-control" id="confirm_password" 
                                            name="confirm_password" required>
+                                    <button class="btn btn-outline-secondary" type="button" id="toggleConfirmPassword">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
                                 </div>
+                                <div class="invalid-feedback">Passwords must match.</div>
                             </div>
 
                             <div class="alert alert-info" role="alert">
@@ -190,9 +222,109 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             event.preventDefault()
                             event.stopPropagation()
                         }
+                        
+                        // Check if passwords match
+                        const password = document.getElementById('password');
+                        const confirmPassword = document.getElementById('confirm_password');
+                        
+                        if (password.value !== confirmPassword.value) {
+                            confirmPassword.setCustomValidity('Passwords must match');
+                            event.preventDefault();
+                            event.stopPropagation();
+                        } else {
+                            confirmPassword.setCustomValidity('');
+                        }
+                        
                         form.classList.add('was-validated')
                     }, false)
                 })
+                
+            // Password strength meter
+            const passwordInput = document.getElementById('password');
+            const strengthBar = document.getElementById('passwordStrength');
+            const lengthCheck = document.getElementById('length-check');
+            const uppercaseCheck = document.getElementById('uppercase-check');
+            const lowercaseCheck = document.getElementById('lowercase-check');
+            const numberCheck = document.getElementById('number-check');
+            const specialCheck = document.getElementById('special-check');
+            
+            // Toggle password visibility
+            const togglePassword = document.getElementById('togglePassword');
+            const toggleConfirmPassword = document.getElementById('toggleConfirmPassword');
+            
+            togglePassword.addEventListener('click', function() {
+                const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                passwordInput.setAttribute('type', type);
+                this.querySelector('i').classList.toggle('fa-eye');
+                this.querySelector('i').classList.toggle('fa-eye-slash');
+            });
+            
+            toggleConfirmPassword.addEventListener('click', function() {
+                const confirmPasswordInput = document.getElementById('confirm_password');
+                const type = confirmPasswordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+                confirmPasswordInput.setAttribute('type', type);
+                this.querySelector('i').classList.toggle('fa-eye');
+                this.querySelector('i').classList.toggle('fa-eye-slash');
+            });
+            
+            // Check password strength
+            passwordInput.addEventListener('input', function() {
+                const password = this.value;
+                let strength = 0;
+                
+                // Reset all checks
+                [lengthCheck, uppercaseCheck, lowercaseCheck, numberCheck, specialCheck].forEach(check => {
+                    check.classList.remove('bg-success');
+                    check.classList.add('bg-secondary');
+                });
+                
+                // Check length
+                if (password.length >= 8) {
+                    strength += 20;
+                    lengthCheck.classList.remove('bg-secondary');
+                    lengthCheck.classList.add('bg-success');
+                }
+                
+                // Check for uppercase letters
+                if (/[A-Z]/.test(password)) {
+                    strength += 20;
+                    uppercaseCheck.classList.remove('bg-secondary');
+                    uppercaseCheck.classList.add('bg-success');
+                }
+                
+                // Check for lowercase letters
+                if (/[a-z]/.test(password)) {
+                    strength += 20;
+                    lowercaseCheck.classList.remove('bg-secondary');
+                    lowercaseCheck.classList.add('bg-success');
+                }
+                
+                // Check for numbers
+                if (/[0-9]/.test(password)) {
+                    strength += 20;
+                    numberCheck.classList.remove('bg-secondary');
+                    numberCheck.classList.add('bg-success');
+                }
+                
+                // Check for special characters
+                if (/[^A-Za-z0-9]/.test(password)) {
+                    strength += 20;
+                    specialCheck.classList.remove('bg-secondary');
+                    specialCheck.classList.add('bg-success');
+                }
+                
+                // Update strength bar
+                strengthBar.style.width = strength + '%';
+                
+                // Change color based on strength
+                if (strength < 40) {
+                    strengthBar.className = 'progress-bar bg-danger';
+                } else if (strength < 80) {
+                    strengthBar.className = 'progress-bar bg-warning';
+                } else {
+                    strengthBar.className = 'progress-bar bg-success';
+                }
+            });
         })()
     </script>
     <!-- Include Floating Chatbot -->

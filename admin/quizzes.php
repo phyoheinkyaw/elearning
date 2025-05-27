@@ -135,40 +135,26 @@ $quizzes = $stmt->fetchAll();
                 <div class="card mb-4">
                     <div class="card-body">
                         <form method="GET" class="row g-3">
-                            <div class="col-md-6">
-                                <label for="search" class="form-label">Search</label>
-                                <input type="text" class="form-control" id="search" name="search" 
-                                       value="<?php echo htmlspecialchars($search); ?>" 
-                                       placeholder="Search quizzes...">
-                            </div>
-                            <div class="col-md-6">
+                            <div class="col-12">
                                 <label class="form-label">Difficulty Filter</label>
                                 <div class="d-flex flex-wrap gap-2">
-                                    <a href="?<?php echo $search ? "search=" . urlencode($search) : ""; ?>" 
+                                    <a href="quizzes.php" 
                                        class="btn <?php echo $difficulty === '' ? 'btn-primary' : 'btn-outline-primary'; ?>">
                                         All Difficulties
                                     </a>
-                                    <a href="?<?php echo $search ? "search=" . urlencode($search) . "&" : ""; ?>difficulty=0" 
+                                    <a href="?difficulty=0" 
                                        class="btn <?php echo $difficulty === '0' ? 'btn-primary' : 'btn-outline-primary'; ?>">
                                         Beginner
                                     </a>
-                                    <a href="?<?php echo $search ? "search=" . urlencode($search) . "&" : ""; ?>difficulty=1" 
+                                    <a href="?difficulty=1" 
                                        class="btn <?php echo $difficulty === '1' ? 'btn-primary' : 'btn-outline-primary'; ?>">
                                         Intermediate
                                     </a>
-                                    <a href="?<?php echo $search ? "search=" . urlencode($search) . "&" : ""; ?>difficulty=2" 
+                                    <a href="?difficulty=2" 
                                        class="btn <?php echo $difficulty === '2' ? 'btn-primary' : 'btn-outline-primary'; ?>">
                                         Advanced
                                     </a>
                                 </div>
-                            </div>
-                            <div class="col-12">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-search me-2"></i>Search
-                                </button>
-                                <a href="quizzes.php" class="btn btn-secondary">
-                                    <i class="fas fa-times me-2"></i>Clear Filters
-                                </a>
                             </div>
                         </form>
                     </div>

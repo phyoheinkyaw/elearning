@@ -214,32 +214,15 @@ try {
                 <div class="card mb-4">
                     <div class="card-body">
                         <form method="GET" class="row g-3">
-                            <div class="col-md-8">
-                                <label for="search" class="form-label">Search</label>
-                                <input type="text" class="form-control" id="search" name="search" 
-                                       value="<?php echo htmlspecialchars($search); ?>" 
-                                       placeholder="Search materials...">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">&nbsp;</label>
-                                <div class="d-flex">
-                                    <button type="submit" class="btn btn-primary me-2">
-                                        <i class="fas fa-search me-2"></i>Search
-                                    </button>
-                                    <a href="materials.php" class="btn btn-secondary">
-                                        <i class="fas fa-times me-2"></i>Clear Filters
-                                    </a>
-                                </div>
-                            </div>
                             <div class="col-12">
                                 <label class="form-label">Course Filter</label>
                                 <div class="d-flex flex-wrap gap-2">
-                                    <a href="?<?php echo $search ? "search=" . urlencode($search) . "&" : ""; ?>" 
+                                    <a href="materials.php" 
                                        class="btn <?php echo !$course_filter ? 'btn-primary' : 'btn-outline-primary'; ?>">
                                         All Courses
                                     </a>
                                     <?php foreach ($courses as $course): ?>
-                                        <a href="?<?php echo $search ? "search=" . urlencode($search) . "&" : ""; ?>course=<?php echo $course['course_id']; ?>" 
+                                        <a href="?course=<?php echo $course['course_id']; ?>" 
                                            class="btn <?php echo $course_filter == $course['course_id'] ? 'btn-primary' : 'btn-outline-primary'; ?>">
                                             <?php echo htmlspecialchars($course['title']); ?>
                                         </a>

@@ -115,16 +115,10 @@ try {
                 <div class="card mb-4">
                     <div class="card-body">
                         <form method="GET" class="row g-3">
-                            <div class="col-md-6">
-                                <label for="search" class="form-label">Search</label>
-                                <input type="text" class="form-control" id="search" name="search" 
-                                       value="<?php echo htmlspecialchars($search); ?>" 
-                                       placeholder="Search questions...">
-                            </div>
-                            <div class="col-md-6">
+                            <div class="col-12">
                                 <label class="form-label">Level Filter</label>
                                 <div class="d-flex flex-wrap gap-2">
-                                    <a href="?<?php echo $search ? "search=" . urlencode($search) . "&" : ""; ?>" 
+                                    <a href="level-test-questions.php" 
                                        class="btn <?php echo !$level_filter ? 'btn-primary' : 'btn-outline-primary'; ?>">
                                         All Levels
                                     </a>
@@ -132,20 +126,12 @@ try {
                                     $levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
                                     foreach ($levels as $level):
                                     ?>
-                                        <a href="?<?php echo $search ? "search=" . urlencode($search) . "&" : ""; ?>level=<?php echo $level; ?>" 
+                                        <a href="?level=<?php echo $level; ?>" 
                                            class="btn <?php echo $level_filter === $level ? 'btn-primary' : 'btn-outline-primary'; ?>">
                                             <?php echo $level; ?>
                                         </a>
                                     <?php endforeach; ?>
                                 </div>
-                            </div>
-                            <div class="col-12">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-search me-2"></i>Search
-                                </button>
-                                <a href="level-test-questions.php" class="btn btn-secondary">
-                                    <i class="fas fa-times me-2"></i>Clear Filters
-                                </a>
                             </div>
                         </form>
                     </div>
