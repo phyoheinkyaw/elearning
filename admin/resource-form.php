@@ -74,8 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 mkdir($upload_dir, 0777, true);
             }
             
-            // Generate unique filename
-            $filename = uniqid() . '_' . sanitize_filename($file['name']);
+            // Generate unique filename using the resource title
+            $filename = uniqid() . '_' . sanitize_filename($file['name'], $title);
             $file_path = '/uploads/resources/' . $filename;
             
             // Move uploaded file

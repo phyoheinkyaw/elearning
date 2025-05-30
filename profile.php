@@ -345,10 +345,12 @@ try {
                     <h1 class="display-4 mb-0"><?php echo h($user['full_name'] ?: 'Update Your Profile'); ?></h1>
                     <p class="lead mb-3"><?php echo h($user['email'] ?: 'Add your email'); ?></p>
                     <div class="d-flex flex-wrap gap-3">
-                        <div class="profile-stats">
-                            <i class="fas fa-signal me-2"></i>
-                            Level: <?php echo h($user['proficiency_level']); ?>
-                        </div>
+                        <a href="level-test.php" class="text-decoration-none text-white">
+                            <div class="profile-stats" style="cursor: pointer;">
+                                <i class="fas fa-signal me-2"></i>
+                                Level: <?php echo h($user['proficiency_level']); ?>
+                            </div>
+                        </a>
                         <?php if (!empty($user['last_test_date'])): ?>
                             <div class="profile-stats">
                                 <i class="fas fa-calendar me-2"></i>

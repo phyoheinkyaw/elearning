@@ -34,6 +34,47 @@ function sanitize_input($data) {
     return $data;
 }
 
+function sanitize_filename($filename, $title = '') {
+    // If title is provided, use it for the filename base
+    if (!empty($title)) {
+        // Convert title to lowercase
+        $title = strtolower($title);
+        
+        // Remove any character that isn't a letter, digit, space, or dash
+        $title = preg_replace('/[^\w\s-]/', '', $title);
+        
+        // Replace spaces and other non-alphanumeric characters with underscores
+        $title = preg_replace('/[\s-]+/', '_', $title);
+        
+        // Remove leading/trailing underscores
+        $title = trim($title, '_');
+        
+        // Get the extension from the original filename
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        
+        // Create the new filename
+        $filename = $title . '.' . $extension;
+    } else {
+        // Fallback to original behavior if no title is provided
+        // Remove any character that isn't a letter, digit, space, underscore, dash, or dot
+        $filename = preg_replace('/[^\w\s.-]/', '', $filename);
+        
+        // Replace spaces with underscores
+        $filename = str_replace(' ', '_', $filename);
+        
+        // Remove multiple dots and ensure there's only one dot before the extension
+        $filename = preg_replace('/\.(?![^.]*$)/', '_', $filename);
+    }
+    
+    // Limit the filename length
+    if (strlen($filename) > 255) {
+        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+        $filename = substr(pathinfo($filename, PATHINFO_FILENAME), 0, 255 - strlen($extension) - 1) . '.' . $extension;
+    }
+    
+    return $filename;
+}
+
 function generate_random_string($length = 10) {
     return bin2hex(random_bytes($length));
 }

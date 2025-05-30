@@ -154,6 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <div class="progress" style="height: 5px;">
                                             <div class="progress-bar" role="progressbar" style="width: 0%;" id="passwordStrength"></div>
                                         </div>
+                                        <small class="mt-1 d-block" id="strength-text"></small>
                                     </div>
                                     <div class="password-requirements mt-2">
                                         <small class="d-block mb-1">Password must contain:</small>
@@ -319,10 +320,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Change color based on strength
                 if (strength < 40) {
                     strengthBar.className = 'progress-bar bg-danger';
+                    document.getElementById('strength-text').textContent = 'Weak';
+                    document.getElementById('strength-text').className = 'mt-1 d-block text-danger';
                 } else if (strength < 80) {
                     strengthBar.className = 'progress-bar bg-warning';
+                    document.getElementById('strength-text').textContent = 'Medium';
+                    document.getElementById('strength-text').className = 'mt-1 d-block text-warning';
                 } else {
                     strengthBar.className = 'progress-bar bg-success';
+                    document.getElementById('strength-text').textContent = 'Strong';
+                    document.getElementById('strength-text').className = 'mt-1 d-block text-success';
                 }
             });
         })()
