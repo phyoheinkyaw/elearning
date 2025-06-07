@@ -10,6 +10,14 @@ if (!is_logged_in() || $_SESSION['role'] !== 'admin') {
 
 $user_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $is_edit = $user_id > 0;
+
+// Redirect to users.php if no user_id is provided (prevents creating new users)
+if (!$is_edit) {
+    $_SESSION['error_message'] = "User creation has been disabled.";
+    header('Location: users.php');
+    exit();
+}
+
 $user = [];
 $profile = [];
 
@@ -76,6 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $conn->beginTransaction();
         
+        // Only allow editing, not creating new users
         if ($is_edit) {
             // Update user basic info
             $update_fields = ["username = ?", "email = ?", "role = ?"];
@@ -110,33 +119,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $_SESSION['success_message'] = "User updated successfully.";
         } else {
-            // Check if username or email already exists
-            $stmt = $conn->prepare("SELECT user_id FROM users WHERE username = ? OR email = ?");
-            $stmt->execute([$username, $email]);
-            if ($stmt->rowCount() > 0) {
-                throw new Exception("Username or email already exists.");
-            }
-            
-            // Generate a secure password
-            $password = generate_secure_password();
-            $stored_password = "INITIAL:" . $password; // Store with INITIAL: prefix to identify unmodified passwords
-            
-            // Insert new user
-            $stmt = $conn->prepare("
-                INSERT INTO users (username, email, password, role)
-                VALUES (?, ?, ?, ?)
-            ");
-            $stmt->execute([$username, $email, $stored_password, $role]);
-            $new_user_id = $conn->lastInsertId();
-            
-            // Insert profile
-            $stmt = $conn->prepare("
-                INSERT INTO user_profiles (user_id, full_name, proficiency_level)
-                VALUES (?, ?, ?)
-            ");
-            $stmt->execute([$new_user_id, $full_name, $proficiency_level]);
-            
-            $_SESSION['success_message'] = "User created successfully. Initial password: " . $password;
+            // This block should never be reached due to the earlier redirect
+            $_SESSION['error_message'] = "User creation has been disabled.";
+            header('Location: users.php');
+            exit();
         }
         
         $conn->commit();
@@ -156,7 +142,7 @@ $levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $is_edit ? 'Edit' : 'Add'; ?> User - ELearning Admin</title>
+    <title>Edit User - ELearning Admin</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
@@ -173,7 +159,7 @@ $levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
         <main class="admin-content">
             <div class="container-fluid py-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h1 class="h3 mb-0"><?php echo $is_edit ? 'Edit' : 'Add'; ?> User</h1>
+                    <h1 class="h3 mb-0">Edit User</h1>
                     <a href="users.php" class="btn btn-secondary">
                         <i class="fas fa-arrow-left me-2"></i>Back to Users
                     </a>
@@ -238,23 +224,7 @@ $levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
                                     </select>
                                 </div>
                                 
-                                <?php if (!$is_edit): ?>
-                                <div class="col-12">
-                                    <div class="alert alert-info">
-                                        <i class="fas fa-info-circle me-2"></i>
-                                        A secure password will be generated for the new user. They can change it after logging in.
-                                        <br>
-                                        Password requirements:
-                                        <ul class="mb-0">
-                                            <li>At least 8 characters long</li>
-                                            <li>At least 1 uppercase letter</li>
-                                            <li>At least 1 lowercase letter</li>
-                                            <li>At least 1 number</li>
-                                            <li>At least 1 special character</li>
-                                        </ul>
-                                    </div>
-                                </div>
-                                <?php elseif (isset($user['initial_password'])): ?>
+                                <?php if (isset($user['initial_password'])): ?>
                                 <div class="col-12">
                                     <div class="alert alert-warning">
                                         <i class="fas fa-exclamation-triangle me-2"></i>
@@ -265,7 +235,6 @@ $levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
                                 </div>
                                 <?php endif; ?>
                                 
-                                <?php if ($is_edit): ?>
                                 <div class="col-md-6">
                                     <label for="new_password" class="form-label">New Password</label>
                                     <div class="input-group">
@@ -290,11 +259,10 @@ $levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
                                         </ul>
                                     </div>
                                 </div>
-                                <?php endif; ?>
                                 
                                 <div class="col-12">
                                     <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-save me-2"></i><?php echo $is_edit ? 'Update' : 'Create'; ?> User
+                                        <i class="fas fa-save me-2"></i>Update User
                                     </button>
                                 </div>
                             </div>

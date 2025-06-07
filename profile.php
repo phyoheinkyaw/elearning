@@ -192,6 +192,76 @@ try {
         }
     }
 
+    // Get quiz statistics and history
+    try {
+        // Get overall quiz statistics
+        $stmt = $conn->prepare("
+            SELECT 
+                COUNT(DISTINCT qr.quiz_id) as total_quizzes_taken,
+                ROUND(AVG(qr.score), 1) as average_score,
+                MAX(qr.score) as highest_score,
+                COUNT(CASE WHEN qr.score >= 70 THEN 1 END) as quizzes_passed,
+                COUNT(*) as total_attempts
+            FROM quiz_results qr
+            WHERE qr.user_id = ?
+        ");
+        $stmt->execute([$_SESSION['user_id']]);
+        $quiz_stats = $stmt->fetch();
+        
+        // Get recent quiz attempts with pagination
+        $quizzes_per_page = 5;
+        $stmt = $conn->prepare("
+            SELECT COUNT(*) as total
+            FROM quiz_results
+            WHERE user_id = ?
+        ");
+        $stmt->execute([$_SESSION['user_id']]);
+        $total_quiz_results = $stmt->fetch()['total'];
+        
+        // Calculate pagination
+        $total_quiz_pages = ceil($total_quiz_results / $quizzes_per_page);
+        $quiz_current_page = isset($_GET['quiz_page']) ? max(1, min($total_quiz_pages, intval($_GET['quiz_page']))) : 1;
+        $quiz_offset = ($quiz_current_page - 1) * $quizzes_per_page;
+        
+        // Get paginated quiz attempts
+        $stmt = $conn->prepare("
+            SELECT 
+                qr.result_id,
+                qr.attempt_id,
+                qr.quiz_id,
+                q.title as quiz_title,
+                qr.score,
+                qr.completion_time as duration,
+                qr.taken_at as attempt_date,
+                qa.status
+            FROM quiz_results qr
+            JOIN quizzes q ON qr.quiz_id = q.quiz_id
+            JOIN quiz_attempts qa ON qr.attempt_id = qa.attempt_id
+            WHERE qr.user_id = ?
+            ORDER BY qr.taken_at DESC
+            LIMIT ? OFFSET ?
+        ");
+        $stmt->execute([$_SESSION['user_id'], $quizzes_per_page, $quiz_offset]);
+        $quiz_history = $stmt->fetchAll();
+        
+    } catch (PDOException $e) {
+        $quiz_stats = [
+            'total_quizzes_taken' => 0,
+            'average_score' => 0,
+            'highest_score' => 0,
+            'quizzes_passed' => 0,
+            'total_attempts' => 0
+        ];
+        $quiz_history = [];
+        $total_quiz_pages = 0;
+        $quiz_current_page = 1;
+        if ($e->getCode() == '42S02') {
+            error_log('Quiz table not found: ' . $e->getMessage());
+        } else {
+            error_log('Error fetching quiz data: ' . $e->getMessage());
+        }
+    }
+
     // Get test history with pagination
     try {
         // Get total count of test results
@@ -247,6 +317,16 @@ try {
     ];
     $enrolled_courses = [];
     $test_history = [];
+    $quiz_stats = [
+        'total_quizzes_taken' => 0,
+        'average_score' => 0,
+        'highest_score' => 0,
+        'quizzes_passed' => 0,
+        'total_attempts' => 0
+    ];
+    $quiz_history = [];
+    $total_quiz_pages = 0;
+    $quiz_current_page = 1;
 }
 ?>
 
@@ -512,6 +592,121 @@ try {
                         <?php endif; ?>
                     </div>
                 </div>
+                
+                <!-- Quiz History -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h4 class="card-title mb-0">Quiz Performance</h4>
+                            <a href="quizzes.php" class="btn btn-outline-primary btn-sm">Find Quizzes</a>
+                        </div>
+                        
+                        <?php if (empty($quiz_history)): ?>
+                            <p class="text-muted">You haven't taken any quizzes yet.</p>
+                            <a href="quizzes.php" class="btn btn-primary">Practice with Quizzes</a>
+                        <?php else: ?>
+                            <!-- Quiz Stats Cards -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-3 col-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center py-3">
+                                            <h5 class="card-title mb-0"><?php echo $quiz_stats['total_quizzes_taken']; ?></h5>
+                                            <small class="text-muted">Quizzes Taken</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center py-3">
+                                            <h5 class="card-title mb-0"><?php echo $quiz_stats['average_score']; ?>%</h5>
+                                            <small class="text-muted">Average Score</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center py-3">
+                                            <h5 class="card-title mb-0"><?php echo $quiz_stats['highest_score']; ?>%</h5>
+                                            <small class="text-muted">Highest Score</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3 col-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center py-3">
+                                            <h5 class="card-title mb-0"><?php echo $quiz_stats['quizzes_passed']; ?>/<?php echo $quiz_stats['total_attempts']; ?></h5>
+                                            <small class="text-muted">Pass Rate</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Quiz History Table -->
+                            <h5 class="mb-3">Recent Quiz Attempts</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Quiz</th>
+                                            <th>Score</th>
+                                            <th>Status</th>
+                                            <th>Date</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($quiz_history as $quiz): ?>
+                                            <tr>
+                                                <td><?php echo htmlspecialchars($quiz['quiz_title']); ?></td>
+                                                <td>
+                                                    <span class="badge <?php echo $quiz['score'] >= 70 ? 'bg-success' : 'bg-danger'; ?>">
+                                                        <?php echo $quiz['score']; ?>%
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    <?php if ($quiz['status'] == 1): ?>
+                                                        <span class="badge bg-success">Completed</span>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-warning">In Progress</span>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td><?php echo date('M d, Y', strtotime($quiz['attempt_date'])); ?></td>
+                                                <td>
+                                                    <a href="take-quiz.php?id=<?php echo $quiz['quiz_id']; ?>" 
+                                                       class="btn btn-sm btn-outline-primary">
+                                                        Retry
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <?php if ($total_quiz_pages > 1): ?>
+                            <nav aria-label="Quiz history pagination" class="mt-4">
+                                <ul class="pagination justify-content-center">
+                                    <li class="page-item <?php echo $quiz_current_page <= 1 ? 'disabled' : ''; ?>">
+                                        <a class="page-link" href="?quiz_page=<?php echo $quiz_current_page - 1; ?><?php echo isset($_GET['page']) ? '&page='.$_GET['page'] : ''; ?>" 
+                                           <?php echo $quiz_current_page <= 1 ? 'tabindex="-1" aria-disabled="true"' : ''; ?>>Previous</a>
+                                    </li>
+                                    <?php for ($i = 1; $i <= $total_quiz_pages; $i++): ?>
+                                        <li class="page-item <?php echo $quiz_current_page == $i ? 'active' : ''; ?>">
+                                            <a class="page-link" href="?quiz_page=<?php echo $i; ?><?php echo isset($_GET['page']) ? '&page='.$_GET['page'] : ''; ?>">
+                                                <?php echo $i; ?>
+                                            </a>
+                                        </li>
+                                    <?php endfor; ?>
+                                    <li class="page-item <?php echo $quiz_current_page >= $total_quiz_pages ? 'disabled' : ''; ?>">
+                                        <a class="page-link" href="?quiz_page=<?php echo $quiz_current_page + 1; ?><?php echo isset($_GET['page']) ? '&page='.$_GET['page'] : ''; ?>"
+                                           <?php echo $quiz_current_page >= $total_quiz_pages ? 'tabindex="-1" aria-disabled="true"' : ''; ?>>Next</a>
+                                    </li>
+                                </ul>
+                            </nav>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
             </div>
 
             <!-- Sidebar -->
@@ -705,6 +900,15 @@ try {
                     }
                 }
             });
+        });
+        <?php endif; ?>
+        
+        <?php if (!empty($quiz_history)): ?>
+        // Quiz Performance Chart
+        document.addEventListener('DOMContentLoaded', function() {
+            // We could add a quiz performance chart here if needed
+            // For example, showing scores over time, topic breakdown, etc.
+            // This would be similar to the test history chart but with quiz data
         });
         <?php endif; ?>
     </script>

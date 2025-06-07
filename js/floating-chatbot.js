@@ -140,7 +140,8 @@ $(document).ready(function () {
             $sendBtn.html('<i class="fas fa-paper-plane"></i>');
         }
         
-        if ($input.val().trim().length > 0 && !aiGenerating) {
+        // Make sure $input and $input.val() are defined before calling trim()
+        if ($input && $input.val() && $input.val().trim().length > 0 && !aiGenerating) {
             $sendBtn.prop('disabled', false);
         } else {
             $sendBtn.prop('disabled', true);
