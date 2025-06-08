@@ -161,9 +161,50 @@ $types = [0 => 'PDF', 1 => 'E-book', 2 => 'Worksheet'];
                         <div class="card-body p-4">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <span class="badge bg-primary"><?php echo $resource['proficiency_level']; ?></span>
-                                <span class="badge bg-info"><?php echo $types[$resource['file_type']]; ?></span>
+                                <?php
+                                // Set badge background and text color based on file type
+                                $bg = 'bg-info';
+                                $color = 'text-dark';
+                                switch($resource['file_type']) {
+                                    case 0:
+                                        $bg = 'bg-danger';
+                                        $color = 'text-white';
+                                        break;
+                                    case 1:
+                                        $bg = 'bg-success';
+                                        $color = 'text-white';
+                                        break;
+                                    case 2:
+                                        $bg = 'bg-warning';
+                                        $color = 'text-dark';
+                                        break;
+                                }
+                                ?>
+                                <span class="badge <?php echo $bg; ?> <?php echo $color; ?>"><?php echo $types[$resource['file_type']]; ?></span>
                             </div>
-                            <h5 class="card-title mb-3"><?php echo htmlspecialchars($resource['title']); ?></h5>
+                            <h5 class="card-title mb-3">
+                                <?php
+                                // Set icon based on file type
+                                $icon = 'fa-file';
+                                $color = 'text-primary';
+                                switch($resource['file_type']) {
+                                    case 0:
+                                        $icon = 'fa-file-pdf';
+                                        $color = 'text-danger';
+                                        break;
+                                    case 1:
+                                        $icon = 'fa-book';
+                                        $color = 'text-success';
+                                        break;
+                                    case 2:
+                                        $icon = 'fa-file-alt';
+                                        $color = 'text-warning';
+                                        break;
+                                }
+                                ?>
+                                <i class="fas <?php echo $icon; ?> <?php echo $color; ?> me-2"></i>
+                                <?php echo htmlspecialchars($resource['title']); ?>
+                            </h5>
                             <p class="card-text text-muted mb-4">
                                 <?php echo htmlspecialchars($resource['description']); ?></p>
                             <div class="d-flex justify-content-between align-items-center">

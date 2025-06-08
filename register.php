@@ -43,8 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Begin transaction
                 $conn->beginTransaction();
 
-                // Insert user
-                $stmt = $conn->prepare("INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, 1)");
+                // Insert user with last_login timestamp
+                $stmt = $conn->prepare("INSERT INTO users (username, email, password, role, last_login) VALUES (?, ?, ?, 1, NOW())");
                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
                 $stmt->execute([$username, $email, $hashed_password]);
                 $user_id = $conn->lastInsertId();

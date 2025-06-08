@@ -60,8 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Validate file type
             $allowed_types = [
                 0 => ['pdf'],
-                1 => ['epub', 'mobi'],
-                2 => ['pdf', 'doc', 'docx']
+                1 => ['pdf', 'doc', 'docx'],
+                2 => ['pdf', 'xls', 'xlsx']
             ];
             
             if (!in_array($file_extension, $allowed_types[$file_type])) {
@@ -246,8 +246,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <div class="form-text">
                                         <strong>Accepted file types:</strong><br>
                                         PDF: .pdf<br>
-                                        E-book: .epub, .mobi<br>
-                                        Worksheet: .pdf, .doc, .docx
+                                        E-book: .pdf,.doc, .docx<br>
+                                        Worksheet: .pdf, .xls, .xlsx
                                     </div>
                                     <div class="invalid-feedback">Please upload a file.</div>
                                 </div>
@@ -285,30 +285,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // File type validation
         document.getElementById('file_type').addEventListener('change', function() {
+            updateFileValidation();
+        });
+        
+        document.getElementById('resource_file').addEventListener('change', function() {
+            updateFileValidation();
+        });
+        
+        function updateFileValidation() {
             const fileInput = document.getElementById('resource_file');
-            const fileType = this.value;
+            const fileType = document.getElementById('file_type').value;
             
             if (fileInput.files.length > 0) {
                 const file = fileInput.files[0];
                 const extension = file.name.split('.').pop().toLowerCase();
                 
                 let validExtensions = [];
+                let fileTypeText = '';
+                
                 switch(fileType) {
                     case '0': // PDF
                         validExtensions = ['pdf'];
+                        fileTypeText = 'PDF';
                         break;
                     case '1': // E-book
-                        validExtensions = ['epub', 'mobi'];
+                        validExtensions = ['pdf', 'doc', 'docx'];
+                        fileTypeText = 'E-book';
                         break;
                     case '2': // Worksheet
-                        validExtensions = ['pdf', 'doc', 'docx'];
+                        validExtensions = ['pdf', 'xls', 'xlsx'];
+                        fileTypeText = 'Worksheet';
                         break;
+                    default:
+                        // No file type selected yet
+                        return;
                 }
                 
                 if (!validExtensions.includes(extension)) {
-                    alert('Invalid file type for the selected resource type.');
+                    alert(`Invalid file type for ${fileTypeText}. Allowed extensions: ${validExtensions.join(', ')}`);
                     fileInput.value = '';
                 }
+            }
+        }
+        
+        // Add file type validation on page load for pre-selected values
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set the file input accept attribute based on the selected resource type
+            const fileTypeSelect = document.getElementById('file_type');
+            const fileInput = document.getElementById('resource_file');
+            
+            fileTypeSelect.addEventListener('change', function() {
+                switch(this.value) {
+                    case '0': // PDF
+                        fileInput.setAttribute('accept', '.pdf');
+                        break;
+                    case '1': // E-book
+                        fileInput.setAttribute('accept', '.pdf,.doc,.docx');
+                        break;
+                    case '2': // Worksheet
+                        fileInput.setAttribute('accept', '.pdf,.xls,.xlsx');
+                        break;
+                    default:
+                        fileInput.removeAttribute('accept');
+                }
+            });
+            
+            // Trigger the change event to set initial accept attribute
+            if (fileTypeSelect.value) {
+                const event = new Event('change');
+                fileTypeSelect.dispatchEvent(event);
             }
         });
     </script>

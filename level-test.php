@@ -143,6 +143,12 @@ $progress = ($current + 1) * 4; // 4% per question for 25 questions
                     </div>
                 <?php endif; ?>
 
+                <!-- Display error message if exists -->
+                <div id="error-message" class="alert alert-danger alert-dismissible fade show mb-4 d-none" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i> <span id="error-text"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+
                 <div class="card border-0 shadow-lg">
                     <div class="card-body p-4">
                         <div class="d-flex justify-content-between align-items-center mb-4">
@@ -224,6 +230,17 @@ $progress = ($current + 1) * 4; // 4% per question for 25 questions
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
+        // Check for error message in sessionStorage on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const errorMsg = sessionStorage.getItem('levelTestError');
+            if (errorMsg) {
+                const errorElement = document.getElementById('error-message');
+                document.getElementById('error-text').textContent = errorMsg;
+                errorElement.classList.remove('d-none');
+                sessionStorage.removeItem('levelTestError');
+            }
+        });
+
         function selectAnswer(answer) {
             // Update UI immediately
             const cards = document.querySelectorAll('.option-card');
@@ -255,10 +272,10 @@ $progress = ($current + 1) * 4; // 4% per question for 25 questions
         }
 
         function submitTest() {
-            // Check if current page has an answer
+            // Check if current question has an answer
             const hasCurrentAnswer = document.querySelector('.option-card.selected') !== null;
             if (!hasCurrentAnswer) {
-                alert('Please select an answer for the current question before submitting.');
+                sessionStorage.setItem('levelTestError', 'Please select an answer for the current question before proceeding.');
                 return;
             }
 
@@ -269,7 +286,15 @@ $progress = ($current + 1) * 4; // 4% per question for 25 questions
                 if (data.complete) {
                     window.location.href = 'level-test-result.php';
                 } else {
-                    alert('Please answer all questions before submitting the test.');
+                    // Find the first unanswered question
+                    const unansweredQuestions = data.unanswered || [];
+                    if (unansweredQuestions.length > 0) {
+                        const firstUnanswered = unansweredQuestions[0];
+                        sessionStorage.setItem('levelTestError', 'Please answer all questions before submitting the test.');
+                        window.location.href = `?q=${firstUnanswered}`;
+                    } else {
+                        sessionStorage.setItem('levelTestError', 'Please answer all questions before submitting the test.');
+                    }
                 }
             })
             .catch(error => {

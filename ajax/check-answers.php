@@ -14,11 +14,17 @@ if (!isset($_SESSION['test_answers']) || !isset($_SESSION['test_questions'])) {
 
 // Check if all questions have an answer
 $complete = true;
-foreach ($_SESSION['test_answers'] as $answer) {
-    if (empty($answer)) {
+$unanswered = [];
+
+// Loop through all questions and track unanswered ones
+for ($i = 0; $i < count($_SESSION['test_questions']); $i++) {
+    if (!isset($_SESSION['test_answers'][$i]) || empty($_SESSION['test_answers'][$i])) {
         $complete = false;
-        break;
+        $unanswered[] = $i;
     }
 }
 
-echo json_encode(['complete' => $complete]); 
+echo json_encode([
+    'complete' => $complete, 
+    'unanswered' => $unanswered
+]); 
