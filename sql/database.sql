@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS courses (
     is_featured TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NULL ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (instructor_id) REFERENCES users(user_id)
+    FOREIGN KEY (instructor_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 -- Course materials table
@@ -260,7 +260,7 @@ CREATE TABLE IF NOT EXISTS wordscapes_user_progress (
     completed_levels JSON,          -- Array of completed level IDs
     revealed_hints JSON, -- Stores which hint letters have been revealed
     last_played TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (current_level_id) REFERENCES wordscapes_levels(level_id) ON DELETE CASCADE,
     UNIQUE KEY unique_user_progress (user_id)
 );
